@@ -36,7 +36,13 @@ const firebaseConfig = {
 //    After creating the owner account in Firebase Auth,
 //    go to Authentication → Users, copy the UID.
 // ══════════════════════════════════════════════════════════
-const OWNER_UID = "Pk05qoYgGZep5i2XfDqHbYanQ2H2";
+const OWNER_UID = "oL6xAICq4Jg1cPvwwDuazRHBwi62";
+
+// ══════════════════════════════════════════════════════════
+// 🔧 DATA ENTRY UID — create a Firebase Auth account for
+//    the data entry person, then paste their UID here.
+// ══════════════════════════════════════════════════════════
+const DATA_ENTRY_UID = "6ft3u2oXCgVlvGPLwLhqYMJjbPZ2";
 
 // ══════════════════════════════════════════════════════════
 // 🔧 STEP 3: Set display names for each mentor UID.
@@ -44,7 +50,7 @@ const OWNER_UID = "Pk05qoYgGZep5i2XfDqHbYanQ2H2";
 // ══════════════════════════════════════════════════════════
 const MENTOR_NAMES = {
   "MENTOR_1_UID": "AADISANKAR D",
-  "dQafLyjLo8fzBYzprV0JqAfvIIu2": "ABHISHITH S D",
+  "oL6xAICq4Jg1cPvwwDuazRHBwi62": "ABHISHITH S D",
   "MENTOR_3_UID": "ADHIL",
   "MENTOR_4_UID": "GAUTHAM THEJUR",
   "MENTOR_5_UID": "HAN JOSEPH",
@@ -56,9 +62,10 @@ const auth = getAuth(app);
 const db   = getFirestore(app);
 
 // ── Globals exposed to main app code ──
-window._FB = { auth, db, OWNER_UID, MENTOR_NAMES };
+window._FB = { auth, db, OWNER_UID, DATA_ENTRY_UID, MENTOR_NAMES };
 window._currentUID   = null;
 window._isOwner      = false;
+window._isDataEntry  = false;
 window._viewingUID   = null; // for owner: which mentor's data is shown
 window._unsubscribers = [];
 
@@ -71,11 +78,32 @@ onAuthStateChanged(auth, async user => {
     return;
   }
 
-  window._currentUID = user.uid;
-  window._isOwner    = (user.uid === OWNER_UID);
-  window._viewingUID = user.uid; // default: own data
+  window._currentUID  = user.uid;
+  window._isOwner     = (user.uid === OWNER_UID);
+  window._isDataEntry = (user.uid === DATA_ENTRY_UID);
+  window._viewingUID  = user.uid; // default: own data
 
-  // Update UI for logged-in user
+  // ── Data Entry person: show dedicated UI ──
+  if (window._isDataEntry) {
+    document.getElementById('loadingMsg').textContent = 'Loading data entry panel…';
+    document.getElementById('deUserName').textContent = 'Data Entry';
+    document.getElementById('deUserEmail').textContent = user.email;
+    // Populate mentor selector
+    const deSel = document.getElementById('deMentorSelect');
+    deSel.innerHTML = Object.entries(MENTOR_NAMES).map(([uid, name]) =>
+      `<option value="${uid}">${name}</option>`
+    ).join('');
+    // Load first mentor's data
+    const firstUID = Object.keys(MENTOR_NAMES)[0];
+    window._viewingUID = firstUID;
+    await loadUserData(firstUID);
+    document.getElementById('loadingOverlay').style.display = 'none';
+    document.getElementById('appMain').style.display = 'none';
+    document.getElementById('deApp').style.display = 'flex';
+    deNav('de-students', null);
+    return;
+  }
+
   const name = MENTOR_NAMES[user.uid] || (window._isOwner ? 'Owner' : user.email);
   document.getElementById('userDisplayName').textContent = name;
   document.getElementById('userEmail').textContent = user.email;
@@ -536,6 +564,7 @@ tr:last-child td{border-bottom:none}
 <!-- Owner viewing banner -->
 <div id="viewingBanner"></div>
 
+<div id="appMain">
 <nav id="sidebar">
   <div class="sb-logo">
     <div class="sb-logo-fb">CR</div>
@@ -824,8 +853,212 @@ tr:last-child td{border-bottom:none}
 
   </div>
 </div>
+</div><!-- /#appMain -->
 
-<!-- MODALS -->
+<!-- ═══════════════════════════════════════════════════════
+     DATA ENTRY APP — shown only to the data entry user
+     ═══════════════════════════════════════════════════════ -->
+<div id="deApp" style="display:none;min-height:100vh;background:var(--bg)">
+
+  <!-- DE Sidebar -->
+  <nav id="deSidebar" style="position:fixed;left:0;top:0;bottom:0;width:224px;background:var(--s1);border-right:1px solid var(--bdr);display:flex;flex-direction:column;z-index:50">
+    <div class="sb-logo">
+      <div class="sb-logo-fb">DE</div>
+      <div class="sb-brand">CRISPR<br><span style="color:var(--acc2)">DATA ENTRY</span></div>
+    </div>
+
+    <!-- DE User info -->
+    <div class="sb-user">
+      <div class="sb-user-av" style="background:linear-gradient(135deg,var(--acc2),var(--acc4))">D</div>
+      <div style="flex:1;min-width:0">
+        <div class="sb-user-name" id="deUserName">Data Entry</div>
+        <div class="sb-user-email" id="deUserEmail" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+      </div>
+      <button class="btn-logout" onclick="window._logout()" title="Logout"><i class="fa-solid fa-right-from-bracket"></i></button>
+    </div>
+
+    <!-- Mentor switcher — always visible for data entry -->
+    <div style="padding:10px;border-bottom:1px solid var(--bdr)">
+      <label style="font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--t3);display:block;margin-bottom:6px">Viewing Mentor</label>
+      <select id="deMentorSelect" class="fs" style="font-size:12px" onchange="deSwitchMentor(this.value)"></select>
+    </div>
+
+    <div class="sb-nav">
+      <div class="sb-section">Data Entry</div>
+      <button class="sb-item active" id="de-nav-de-students" onclick="deNav('de-students',this)"><i class="fa-solid fa-users"></i>Students<span class="sb-badge" id="deSBCount">0</span></button>
+      <button class="sb-item" id="de-nav-de-exams" onclick="deNav('de-exams',this)"><i class="fa-solid fa-file-pen"></i>Exam Entry</button>
+      <button class="sb-item" id="de-nav-de-bulk" onclick="deNav('de-bulk',this)"><i class="fa-solid fa-upload"></i>Bulk Entry</button>
+    </div>
+
+    <div class="sb-footer">
+      <div class="sb-footer-info" id="deSBInfo" style="font-size:11px;color:var(--t3);padding:8px 10px">Data Entry Panel</div>
+    </div>
+  </nav>
+
+  <!-- DE Main -->
+  <div style="margin-left:224px;min-height:100vh">
+    <div class="topbar">
+      <div class="topbar-title" id="deTopbarTitle"><span>Students</span></div>
+      <div class="topbar-actions">
+        <span class="theme-icon" id="deThemeIcon"><i class="fa-solid fa-moon"></i></span>
+        <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme"></button>
+        <span id="deMentorBadge" style="background:rgba(167,139,250,.15);border:1px solid rgba(167,139,250,.3);color:var(--acc2);font-size:10px;font-weight:700;padding:4px 10px;border-radius:20px;letter-spacing:.5px"></span>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- DE: STUDENTS PAGE -->
+      <div class="page active" id="pg-de-students">
+        <div class="ph">
+          <div><h1>Students</h1><p id="deStudentsSub">Manage student roster for selected mentor</p></div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <div class="sw" style="width:220px"><span class="sw-ic"><i class="fa-solid fa-magnifying-glass"></i></span><input type="text" placeholder="Search name or roll…" id="deStSearch" oninput="deRenderStudents()"></div>
+            <button class="btn btn-bulk btn-sm" onclick="deOpenBulkStudents()"><i class="fa-solid fa-upload"></i> Bulk Add</button>
+            <button class="btn btn-p btn-sm" onclick="deOpenAddStudent()"><i class="fa-solid fa-plus"></i> Add Student</button>
+          </div>
+        </div>
+        <div class="sg" id="deStGrid"></div>
+      </div>
+
+      <!-- DE: EXAM ENTRY PAGE -->
+      <div class="page" id="pg-de-exams">
+        <div class="ph">
+          <div><h1>Exam Entry</h1><p>Record MT and WE marks for selected mentor's students</p></div>
+          <button class="btn btn-bulk btn-sm" onclick="deNav('de-bulk',document.getElementById('de-nav-de-bulk'))"><i class="fa-solid fa-upload"></i> Switch to Bulk</button>
+        </div>
+        <div class="g13">
+          <div class="card">
+            <div class="card-title">New Entry</div>
+            <div class="fg">
+              <label class="fl">Exam Type</label>
+              <div class="tt">
+                <button class="tt-btn tt-mt" id="deTtMT" onclick="deSetType('MT')">Module Test (MT)</button>
+                <button class="tt-btn" id="deTtWE" onclick="deSetType('WE')">Weekly Exam (WE)</button>
+              </div>
+            </div>
+            <div class="fr">
+              <div class="fg"><label class="fl">Student</label><select class="fs" id="deEStudent"></select></div>
+              <div class="fg"><label class="fl">Exam Number</label>
+                <div class="ex-num-row">
+                  <div class="ex-num-pfx" id="deENumPfx">MT</div>
+                  <input class="fi ex-num-in" type="number" id="deENum" min="1" max="99" placeholder="01">
+                </div>
+              </div>
+            </div>
+            <div class="fg"><label class="fl">Date</label><input class="fi" type="date" id="deEDate" style="max-width:200px"></div>
+            <div class="fg">
+              <label class="fl" style="margin-bottom:6px">Subject Marks <span style="color:var(--t3);font-size:9px;letter-spacing:1px;font-weight:500">— default total 60 per subject.</span></label>
+              <div class="sc-row">
+                <div class="sc-f bio"><label>BIO</label><input type="number" id="deSb" min="0" placeholder="—" oninput="deLivePreview()"></div>
+                <div class="sc-f chm"><label>CHM</label><input type="number" id="deSc" min="0" placeholder="—" oninput="deLivePreview()"></div>
+                <div class="sc-f phy"><label>PHY</label><input type="number" id="deSp" min="0" placeholder="—" oninput="deLivePreview()"></div>
+                <div class="sc-f mth"><label>MATHS</label><input type="number" id="deSm" min="0" placeholder="—" oninput="deLivePreview()"></div>
+              </div>
+              <div class="sc-tot-label">Out of (total per subject — default 60)</div>
+              <div class="sc-tot-row">
+                <div class="sc-tot-f"><input type="number" id="deTb" min="1" placeholder="60" value="60" oninput="deLivePreview()"></div>
+                <div class="sc-tot-f"><input type="number" id="deTc" min="1" placeholder="60" value="60" oninput="deLivePreview()"></div>
+                <div class="sc-tot-f"><input type="number" id="deTp" min="1" placeholder="60" value="60" oninput="deLivePreview()"></div>
+                <div class="sc-tot-f"><input type="number" id="deTm" min="1" placeholder="60" value="60" oninput="deLivePreview()"></div>
+              </div>
+            </div>
+            <div class="alert a-info" id="deEPrev" style="display:none"></div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-p" onclick="deSaveExam()"><i class="fa-solid fa-floppy-disk"></i> Save Entry</button>
+              <button class="btn btn-g" onclick="deClearExamForm()"><i class="fa-solid fa-rotate-left"></i> Clear</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Recent 10 Entries</div>
+            <div id="deERecent" style="max-height:520px;overflow-y:auto"></div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:16px">
+          <div class="card-title" style="margin-bottom:12px">All Records
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              <button class="chip on" onclick="deSetEF('all',this)">All</button>
+              <button class="chip" onclick="deSetEF('MT',this)">MT Only</button>
+              <button class="chip" onclick="deSetEF('WE',this)">WE Only</button>
+              <div class="sw" style="width:180px;margin-left:4px"><span class="sw-ic"><i class="fa-solid fa-magnifying-glass"></i></span><input type="text" placeholder="Filter student…" id="deEtSearch" oninput="deRenderExamTable()"></div>
+            </div>
+          </div>
+          <div class="tw" id="deExamTable"></div>
+        </div>
+      </div>
+
+      <!-- DE: BULK ENTRY PAGE -->
+      <div class="page" id="pg-de-bulk">
+        <div class="ph"><div><h1>Bulk Entry</h1><p>Add students or exam marks in bulk for any mentor</p></div></div>
+
+        <div class="tabs" style="margin-bottom:18px">
+          <button class="tab active" id="deBTabStu" onclick="deSwitchBulkTab('students')">Bulk Students</button>
+          <button class="tab" id="deBTabExm" onclick="deSwitchBulkTab('exams')">Bulk Exam Marks</button>
+        </div>
+
+        <!-- Bulk Students -->
+        <div id="deBulkStuPanel">
+          <div class="card">
+            <div class="card-title">Bulk Add Students</div>
+            <div class="alert a-info" style="margin-bottom:12px">One per line: <strong>Roll, Name, Batch, Phone</strong><br>E.g.: <code style="font-family:'JetBrains Mono',monospace;font-size:11px">001, Arjun Sharma, NEET-A, 9876543210</code></div>
+            <div class="fg"><label class="fl">Paste Student Data</label>
+              <textarea class="bulk-textarea" id="deBulkStuText" placeholder="001, Arjun Sharma, NEET-A, 9876543210&#10;002, Priya Verma, NEET-B" oninput="deParseBulkStudentsLive()"></textarea>
+            </div>
+            <div id="deBulkStuPreview" style="margin-bottom:12px;max-height:200px;overflow-y:auto"></div>
+            <div style="display:flex;justify-content:flex-end;gap:8px">
+              <button class="btn btn-g" onclick="deParseBulkStudents()">Preview</button>
+              <button class="btn btn-p" id="deBtnBulkStuSave" onclick="deSaveBulkStudents()" style="display:none"><i class="fa-solid fa-floppy-disk"></i> Save All</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bulk Exams -->
+        <div id="deBulkExmPanel" style="display:none">
+          <div class="card">
+            <div class="card-title">Bulk Exam Marks Entry</div>
+            <div class="fr" style="margin-bottom:14px">
+              <div class="fg">
+                <label class="fl">Exam Type</label>
+                <div class="tt">
+                  <button class="tt-btn tt-mt" id="deBulkTtMT" onclick="deBulkSetType('MT')">MT</button>
+                  <button class="tt-btn" id="deBulkTtWE" onclick="deBulkSetType('WE')">WE</button>
+                </div>
+              </div>
+              <div class="fg">
+                <label class="fl">Exam Number</label>
+                <div class="ex-num-row">
+                  <div class="ex-num-pfx" id="deBulkNumPfx">MT</div>
+                  <input class="fi ex-num-in" type="number" id="deBulkNum" min="1" placeholder="01">
+                </div>
+              </div>
+              <div class="fg"><label class="fl">Date</label><input class="fi" type="date" id="deBulkDate" style="max-width:200px"></div>
+            </div>
+            <div class="alert a-info" style="margin-bottom:12px">One per line: <strong>Roll, BIO, CHM, PHY, MATHS</strong> (leave blank to skip subject)<br>E.g.: <code style="font-family:'JetBrains Mono',monospace;font-size:11px">001, 45, 52, 38, 55</code></div>
+            <div class="fg"><label class="fl">Total per subject (default 60)</label>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px">
+                <div class="sc-f bio"><label>BIO</label><input type="number" class="fi" id="deBulkTb" value="60" min="1" placeholder="60"></div>
+                <div class="sc-f chm"><label>CHM</label><input type="number" class="fi" id="deBulkTc" value="60" min="1" placeholder="60"></div>
+                <div class="sc-f phy"><label>PHY</label><input type="number" class="fi" id="deBulkTp" value="60" min="1" placeholder="60"></div>
+                <div class="sc-f mth"><label>MATHS</label><input type="number" class="fi" id="deBulkTm" value="60" min="1" placeholder="60"></div>
+              </div>
+            </div>
+            <div class="fg"><label class="fl">Paste Marks Data</label>
+              <textarea class="bulk-textarea" id="deBulkExmText" placeholder="001, 45, 52, 38, 55&#10;002, 50, 48, 60, 42"></textarea>
+            </div>
+            <div id="deBulkExmPreview" style="margin-bottom:12px;max-height:200px;overflow-y:auto"></div>
+            <div style="display:flex;justify-content:flex-end;gap:8px">
+              <button class="btn btn-g" onclick="deParseBulkExams()">Preview</button>
+              <button class="btn btn-p" id="deBtnBulkExmSave" onclick="deSaveBulkExams()" style="display:none"><i class="fa-solid fa-floppy-disk"></i> Save All</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /.content -->
+  </div><!-- /.de main -->
+</div><!-- /#deApp -->
+
+<!-- MODALS (shared) -->
 <div class="mo" id="moAddStu" style="display:none" onclick="closeMo('moAddStu',event)">
   <div class="md">
     <div class="mh"><h3>Add New Student</h3><button class="cx" onclick="closeMo('moAddStu')">&#10005;</button></div>
@@ -1566,6 +1799,441 @@ function exportData(){
 
 // INIT
 document.getElementById('eDate').value=new Date().toISOString().split('T')[0];
+</script>
+
+<!-- ═══════════════════════════════════════════════════
+     DATA ENTRY MODALS
+     ═══════════════════════════════════════════════════ -->
+<div class="mo" id="moDeAddStu" style="display:none" onclick="if(event.target.id==='moDeAddStu')closeMoDE('moDeAddStu')">
+  <div class="md">
+    <div class="mh"><h3><i class="fa-solid fa-user-plus" style="color:var(--acc2);margin-right:8px"></i>Add New Student</h3><button class="cx" onclick="closeMoDE('moDeAddStu')">&#10005;</button></div>
+    <div class="fr">
+      <div class="fg"><label class="fl">Roll Number</label><input class="fi" id="deNRoll" placeholder="e.g. 001"></div>
+      <div class="fg"><label class="fl">Full Name</label><input class="fi" id="deNName" placeholder="Student name"></div>
+    </div>
+    <div class="fr">
+      <div class="fg"><label class="fl">Batch / Section</label><input class="fi" id="deNBatch" placeholder="e.g. NEET-A"></div>
+      <div class="fg"><label class="fl">Parent Contact</label><input class="fi" id="deNPhone" placeholder="Phone number"></div>
+    </div>
+    <div class="fg"><label class="fl">Notes (optional)</label><textarea class="fi" id="deNNote" rows="2" placeholder="Any notes…" style="resize:vertical"></textarea></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:4px">
+      <button class="btn btn-g" onclick="closeMoDE('moDeAddStu')">Cancel</button>
+      <button class="btn btn-p" onclick="deAddStudent()"><i class="fa-solid fa-plus"></i> Add Student</button>
+    </div>
+  </div>
+</div>
+
+<div class="mo" id="moDeEditStu" style="display:none" onclick="if(event.target.id==='moDeEditStu')closeMoDE('moDeEditStu')">
+  <div class="md">
+    <div class="mh"><h3><i class="fa-solid fa-pen" style="color:var(--acc);margin-right:8px"></i>Edit Student</h3><button class="cx" onclick="closeMoDE('moDeEditStu')">&#10005;</button></div>
+    <input type="hidden" id="deEditStuId">
+    <div class="fr">
+      <div class="fg"><label class="fl">Roll Number</label><input class="fi" id="deEditRoll"></div>
+      <div class="fg"><label class="fl">Full Name</label><input class="fi" id="deEditName"></div>
+    </div>
+    <div class="fr">
+      <div class="fg"><label class="fl">Batch / Section</label><input class="fi" id="deEditBatch"></div>
+      <div class="fg"><label class="fl">Parent Contact</label><input class="fi" id="deEditPhone"></div>
+    </div>
+    <div class="fg"><label class="fl">Notes</label><textarea class="fi" id="deEditNote" rows="2" style="resize:vertical"></textarea></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:4px">
+      <button class="btn btn-g" onclick="closeMoDE('moDeEditStu')">Cancel</button>
+      <button class="btn btn-p" onclick="deSaveEditStudent()"><i class="fa-solid fa-check"></i> Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<div class="mo" id="moDeEditExam" style="display:none" onclick="if(event.target.id==='moDeEditExam')closeMoDE('moDeEditExam')">
+  <div class="md">
+    <div class="mh"><h3><i class="fa-solid fa-pen" style="color:var(--acc);margin-right:8px"></i>Edit Exam Record</h3><button class="cx" onclick="closeMoDE('moDeEditExam')">&#10005;</button></div>
+    <input type="hidden" id="deEditExamId">
+    <div class="fg"><label class="fl">Date</label><input class="fi" type="date" id="deEditExamDate" style="max-width:200px"></div>
+    <div class="fg">
+      <label class="fl" style="margin-bottom:6px">Subject Marks</label>
+      <div class="sc-row">
+        <div class="sc-f bio"><label>BIO</label><input type="number" id="deEditSb" min="0" placeholder="—" oninput="deLivePreviewEdit()"></div>
+        <div class="sc-f chm"><label>CHM</label><input type="number" id="deEditSc" min="0" placeholder="—" oninput="deLivePreviewEdit()"></div>
+        <div class="sc-f phy"><label>PHY</label><input type="number" id="deEditSp" min="0" placeholder="—" oninput="deLivePreviewEdit()"></div>
+        <div class="sc-f mth"><label>MATHS</label><input type="number" id="deEditSm" min="0" placeholder="—" oninput="deLivePreviewEdit()"></div>
+      </div>
+      <div class="sc-tot-label">Out of (total per subject)</div>
+      <div class="sc-tot-row">
+        <div class="sc-tot-f"><input type="number" id="deEditTb" min="1" placeholder="60" oninput="deLivePreviewEdit()"></div>
+        <div class="sc-tot-f"><input type="number" id="deEditTc" min="1" placeholder="60" oninput="deLivePreviewEdit()"></div>
+        <div class="sc-tot-f"><input type="number" id="deEditTp" min="1" placeholder="60" oninput="deLivePreviewEdit()"></div>
+        <div class="sc-tot-f"><input type="number" id="deEditTm" min="1" placeholder="60" oninput="deLivePreviewEdit()"></div>
+      </div>
+    </div>
+    <div class="alert a-info" id="deEditPrev" style="display:none"></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:4px">
+      <button class="btn btn-g" onclick="closeMoDE('moDeEditExam')">Cancel</button>
+      <button class="btn btn-p" onclick="deSaveEditExam()"><i class="fa-solid fa-check"></i> Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     DATA ENTRY JS
+     ═══════════════════════════════════════════════════ -->
+<script>
+// ── DE state ──
+let _deType = 'MT';
+let _deBulkType = 'MT';
+let _deExamFilter = 'all';
+let _deBulkParsedStudents = [];
+let _deBulkParsedExams = [];
+
+// ── DE helpers ──
+function deG(id){ return document.getElementById(id); }
+function deMentorName(){
+  const uid = window._viewingUID;
+  return (window._FB&&window._FB.MENTOR_NAMES&&window._FB.MENTOR_NAMES[uid]) || uid;
+}
+function deUpdateBadge(){
+  const b = deG('deMentorBadge');
+  if(b) b.textContent = deMentorName();
+}
+function deUpdateSBCount(){
+  const c = deG('deSBCount');
+  if(c) c.textContent = (window._DB_S||[]).length;
+}
+function closeMoDE(id){ deG(id).style.display='none'; }
+
+// ── DE Switch Mentor ──
+window.deSwitchMentor = async function(uid){
+  window._viewingUID = uid;
+  deUpdateBadge();
+  document.getElementById('loadingOverlay').style.display = 'flex';
+  document.getElementById('loadingMsg').textContent = 'Loading mentor data…';
+  await window.loadUserData(uid);
+  document.getElementById('loadingOverlay').style.display = 'none';
+  deRefreshUI();
+};
+
+// ── DE Nav ──
+window.deNav = function(page, el){
+  document.querySelectorAll('#deApp .page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('#deSidebar .sb-item').forEach(b=>b.classList.remove('active'));
+  deG('pg-'+page).classList.add('active');
+  if(el) el.classList.add('active');
+  const t={'de-students':'Students','de-exams':'Exam Entry','de-bulk':'Bulk Entry'};
+  deG('deTopbarTitle').innerHTML=`<span>${t[page]||page}</span>`;
+  if(page==='de-students') deRenderStudents();
+  if(page==='de-exams'){ dePopSelects(); deRenderExamTable(); deRenderRecentEntries(); }
+  if(page==='de-bulk'){ deSwitchBulkTab('students'); }
+};
+
+// ── DE Refresh ──
+function deRefreshUI(){
+  deUpdateBadge();
+  deUpdateSBCount();
+  const page = (document.querySelector('#deApp .page.active')||{}).id||'';
+  if(page==='pg-de-students') deRenderStudents();
+  if(page==='pg-de-exams'){ dePopSelects(); deRenderExamTable(); deRenderRecentEntries(); }
+}
+
+// Hook into global refreshUI for data entry users
+const _origRefreshUI = window.refreshUI || (()=>{});
+window.refreshUI = function(){
+  if(window._isDataEntry){ deRefreshUI(); return; }
+  _origRefreshUI();
+};
+
+// ── DE Students ──
+function deRenderStudents(){
+  const grid = deG('deStGrid'); if(!grid) return;
+  const srch = (deG('deStSearch').value||'').toLowerCase();
+  let stu = (window._DB_S||[]).sort((a,b)=>a.roll.localeCompare(b.roll,undefined,{numeric:true}));
+  if(srch) stu = stu.filter(s=>s.name.toLowerCase().includes(srch)||s.roll.toLowerCase().includes(srch));
+  deG('deStudentsSub').textContent = `${(window._DB_S||[]).length} students for ${deMentorName()}`;
+  deUpdateSBCount();
+  if(!stu.length){
+    grid.innerHTML=`<div class="empty" style="grid-column:1/-1"><div class="empty-ic"><i class="fa-solid fa-users"></i></div><p>No students yet. Add one above.</p></div>`;
+    return;
+  }
+  const exams = window._DB_E||[];
+  grid.innerHTML = stu.map(s=>{
+    const se=exams.filter(e=>e.studentId===s.id);
+    const ps=se.map(e=>getExamOverallPct(e)).filter(v=>v!=null);
+    const avgP=ps.length?Math.round(avg(ps)):null;
+    const g=avgP!=null?grd(avgP):{g:'—',c:'var(--t3)'};
+    const col = ['#22d3ee','#a78bfa','#fb923c','#4ade80','#4f9eff','#f59e0b'][parseInt(s.roll)||0 % 6];
+    return `<div class="sc">
+      <div class="sc-hd">
+        <div class="sc-av" style="background:${col}33;color:${col};border:1px solid ${col}44">${s.name.charAt(0).toUpperCase()}</div>
+        <div style="flex:1">
+          <div class="sc-nm">${s.name}</div>
+          <div class="sc-rl">Roll: ${s.roll}${s.batch?' · '+s.batch:''}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:18px;font-weight:900;color:${g.c};font-family:'JetBrains Mono',monospace">${g.g}</div>
+          <div style="font-size:9px;color:var(--t3)">${avgP!=null?avgP+'%':'No data'}</div>
+        </div>
+      </div>
+      <div class="sc-sj">
+        ${['bio','chm','phy','mth'].map((subj,i)=>{const SUBJ_MAP={bio:'BIO',chm:'CHM',phy:'PHY',mth:'MATHS'};const sv=exams.filter(e=>e.marks&&e.marks[SUBJ_MAP[subj]]!=null).map(e=>getSubjPct(e,SUBJ_MAP[subj]));const sa=sv.length?Math.round(avg(sv)):null;return`<div class="sc-sj-i"><div class="sc-sj-v" style="color:var(--${subj})">${sa!=null?sa+'%':'—'}</div><div class="sc-sj-l">${SUBJ_MAP[subj]}</div></div>`;}).join('')}
+      </div>
+      <div style="display:flex;gap:6px;margin-top:10px">
+        <button class="btn btn-edit btn-xs" style="flex:1" onclick="deOpenEditStudent('${s.id}')"><i class="fa-solid fa-pen"></i> Edit</button>
+        <button class="btn btn-d btn-xs" onclick="deDeleteStudent('${s.id}','${s.name}')"><i class="fa-solid fa-trash"></i></button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.deOpenAddStudent = function(){
+  ['deNRoll','deNName','deNBatch','deNPhone','deNNote'].forEach(id=>deG(id).value='');
+  deG('moDeAddStu').style.display='flex';
+};
+window.deAddStudent = async function(){
+  const roll=deG('deNRoll').value.trim(), name=deG('deNName').value.trim();
+  if(!roll||!name){toast('Roll and name required','er');return;}
+  const stu=window._DB_S||[];
+  if(stu.find(s=>s.roll===roll)){toast('Roll number already in use','er');return;}
+  const s={id:'s_'+Date.now(),roll,name,batch:deG('deNBatch').value.trim(),phone:deG('deNPhone').value.trim(),note:deG('deNNote').value.trim(),createdAt:new Date().toISOString()};
+  try{await window._saveStudent(s);toast('Student added!');closeMoDE('moDeAddStu');}
+  catch(e){toast('Save failed: '+e.message,'er');}
+};
+window.deOpenEditStudent = function(id){
+  const s=(window._DB_S||[]).find(st=>st.id===id); if(!s) return;
+  deG('deEditStuId').value=id;deG('deEditRoll').value=s.roll;deG('deEditName').value=s.name;
+  deG('deEditBatch').value=s.batch||'';deG('deEditPhone').value=s.phone||'';deG('deEditNote').value=s.note||'';
+  deG('moDeEditStu').style.display='flex';
+};
+window.deSaveEditStudent = async function(){
+  const id=deG('deEditStuId').value, roll=deG('deEditRoll').value.trim(), name=deG('deEditName').value.trim();
+  if(!roll||!name){toast('Roll and name required','er');return;}
+  const stu=window._DB_S||[];
+  if(stu.find(s=>s.roll===roll&&s.id!==id)){toast('Roll already in use','er');return;}
+  const existing=stu.find(s=>s.id===id); if(!existing) return;
+  try{await window._saveStudent({...existing,roll,name,batch:deG('deEditBatch').value.trim(),phone:deG('deEditPhone').value.trim(),note:deG('deEditNote').value.trim()});toast('Student updated!');closeMoDE('moDeEditStu');}
+  catch(e){toast('Save failed: '+e.message,'er');}
+};
+window.deDeleteStudent = async function(id, name){
+  if(!confirm(`Delete student "${name}"? This cannot be undone.`)) return;
+  try{await window._deleteStudent(id);toast('Student deleted.','wa');}
+  catch(e){toast('Delete failed: '+e.message,'er');}
+};
+
+// ── DE Exam entry ──
+function dePopSelects(){
+  const stu=(window._DB_S||[]).sort((a,b)=>a.roll.localeCompare(b.roll,undefined,{numeric:true}));
+  const opts='<option value="">— Select —</option>'+stu.map(s=>`<option value="${s.id}">${s.roll} – ${s.name}</option>`).join('');
+  const sel=deG('deEStudent'); if(sel){const v=sel.value;sel.innerHTML=opts;sel.value=v;}
+}
+window.deSetType = function(t){
+  _deType=t;
+  deG('deTtMT').className='tt-btn'+(t==='MT'?' tt-mt':'');
+  deG('deTtWE').className='tt-btn'+(t==='WE'?' tt-we':'');
+  deG('deENumPfx').textContent=t;
+};
+window.deLivePreview = function(){
+  const scores=['deSb','deSc','deSp','deSm'].map(id=>parseFloat(deG(id).value));
+  const tots=['deTb','deTc','deTp','deTm'].map(id=>parseFloat(deG(id).value)||60);
+  const valid=scores.filter((v,i)=>!isNaN(v));
+  if(!valid.length){deG('deEPrev').style.display='none';return;}
+  const scored=scores.reduce((s,v,i)=>isNaN(v)?s:s+v,0);
+  const maxed=scores.reduce((s,v,i)=>isNaN(v)?s:s+tots[i],0);
+  const p=maxed>0?Math.round(scored/maxed*100):0;
+  const g=grd(p);
+  deG('deEPrev').style.display='';
+  deG('deEPrev').innerHTML=`<strong>${scored}/${maxed}</strong> &nbsp; <strong style="color:${g.c}">${p}% — Grade ${g.g}</strong>`;
+};
+window.deSaveExam = async function(){
+  const stuId=deG('deEStudent').value;
+  if(!stuId){toast('Select a student','er');return;}
+  const num=parseInt(deG('deENum').value);
+  if(!num){toast('Enter exam number','er');return;}
+  const marks={};const totals={};const skeys=['deSb','deSc','deSp','deSm'];const tkeys=['deTb','deTc','deTp','deTm'];const SUBJ_LIST=['BIO','CHM','PHY','MATHS'];
+  let hasAny=false;
+  SUBJ_LIST.forEach((subj,i)=>{const v=parseFloat(deG(skeys[i]).value);const t=parseFloat(deG(tkeys[i]).value)||60;if(!isNaN(v)){marks[subj]=v;totals[subj]=t;hasAny=true;}else{marks[subj]=null;totals[subj]=t;}});
+  if(!hasAny){toast('Enter at least one subject mark','er');return;}
+  const examName=`${_deType} ${num}`;
+  const e={id:`e_${Date.now()}`,studentId:stuId,type:_deType,examNum:num,examName,date:deG('deEDate').value,marks,totals,createdAt:new Date().toISOString()};
+  try{await window._saveExam(e);toast('Exam saved!');deClearExamForm();}
+  catch(err){toast('Save failed: '+err.message,'er');}
+};
+window.deClearExamForm = function(){
+  ['deSb','deSc','deSp','deSm'].forEach(id=>{deG(id).value='';});
+  deG('deEDate').value=new Date().toISOString().split('T')[0];
+  deG('deENum').value='';
+  deG('deEPrev').style.display='none';
+};
+
+// ── DE Recent entries ──
+function deRenderRecentEntries(){
+  const el=deG('deERecent');if(!el)return;
+  const exams=(window._DB_E||[]).slice().sort((a,b)=>new Date(b.createdAt||0)-new Date(a.createdAt||0)).slice(0,10);
+  const stu=window._DB_S||[];
+  el.innerHTML=exams.length?exams.map(e=>{
+    const s=stu.find(st=>st.id===e.studentId);
+    const p=getExamOverallPct(e);const g=p!=null?grd(p):{g:'—',c:'var(--t3)'};
+    return`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--bdr)">
+      <span class="badge b-${e.type.toLowerCase()}">${e.type}</span>
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">${s?s.name:'?'}</div>
+      <div style="font-size:10px;color:var(--t2)">${e.examName}${e.date?' · '+e.date:''}</div></div>
+      <span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:${g.c};font-size:13px">${p!=null?p+'%':'—'}</span>
+      <button class="btn btn-edit btn-xs" onclick="deOpenEditExam('${e.id}')"><i class="fa-solid fa-pen"></i></button>
+      <button class="btn btn-d btn-xs" onclick="deDeleteExam('${e.id}')"><i class="fa-solid fa-trash"></i></button>
+    </div>`;
+  }).join(''):`<div class="empty"><p>No entries yet</p></div>`;
+}
+
+// ── DE Exam table ──
+function deRenderExamTable(){
+  const el=deG('deExamTable');if(!el)return;
+  const stu=window._DB_S||[];
+  let exams=window._DB_E||[];
+  if(_deExamFilter!=='all') exams=exams.filter(e=>e.type===_deExamFilter);
+  const srch=(deG('deEtSearch').value||'').toLowerCase();
+  if(srch){const matched=stu.filter(s=>s.name.toLowerCase().includes(srch)||s.roll.toLowerCase().includes(srch)).map(s=>s.id);exams=exams.filter(e=>matched.includes(e.studentId));}
+  exams=exams.slice().sort((a,b)=>{if(a.type!==b.type)return a.type.localeCompare(b.type);return (a.examNum||0)-(b.examNum||0);});
+  if(!exams.length){el.innerHTML=`<div class="empty"><p>No records found</p></div>`;return;}
+  el.innerHTML=`<table><thead><tr><th>Student</th><th>Roll</th><th>Type</th><th>Exam</th><th>Date</th><th>BIO</th><th>CHM</th><th>PHY</th><th>MATHS</th><th>Total</th><th>%</th><th>Actions</th></tr></thead><tbody>${exams.map(e=>{
+    const s=stu.find(st=>st.id===e.studentId);
+    const p=getExamOverallPct(e);const g=p!=null?grd(p):{g:'—',c:'var(--t3)'};
+    const sc=getExamTotalScored(e);const mx=getExamTotalMax(e);
+    return`<tr>
+      <td style="font-weight:600">${s?s.name:'?'}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${s?s.roll:'?'}</td>
+      <td><span class="badge b-${e.type.toLowerCase()}">${e.type}</span></td>
+      <td style="font-family:'JetBrains Mono',monospace">${e.examName}</td>
+      <td style="font-size:11px;color:var(--t2)">${e.date||'—'}</td>
+      ${['BIO','CHM','PHY','MATHS'].map(subj=>`<td class="tc" style="color:var(--${subj==='BIO'?'bio':subj==='CHM'?'chm':subj==='PHY'?'phy':'mth'})">${e.marks&&e.marks[subj]!=null?e.marks[subj]:'—'}</td>`).join('')}
+      <td class="tc">${sc}/${mx}</td>
+      <td class="tc" style="color:${g.c};font-weight:700">${p!=null?p+'%':'—'}</td>
+      <td><div style="display:flex;gap:4px">
+        <button class="btn btn-edit btn-xs" onclick="deOpenEditExam('${e.id}')"><i class="fa-solid fa-pen"></i></button>
+        <button class="btn btn-d btn-xs" onclick="deDeleteExam('${e.id}')"><i class="fa-solid fa-trash"></i></button>
+      </div></td>
+    </tr>`;
+  }).join('')}</tbody></table>`;
+}
+window.deSetEF = function(f,el){
+  _deExamFilter=f;
+  document.querySelectorAll('#pg-de-exams .chip').forEach(c=>c.classList.remove('on'));
+  if(el) el.classList.add('on');
+  deRenderExamTable();
+};
+
+// ── DE Edit/Delete exam ──
+window.deOpenEditExam = function(id){
+  const e=(window._DB_E||[]).find(ex=>ex.id===id);if(!e)return;
+  deG('deEditExamId').value=id;
+  deG('deEditExamDate').value=e.date||'';
+  const m=e.marks||{};const t=e.totals||{};
+  [['deEditSb','BIO'],['deEditSc','CHM'],['deEditSp','PHY'],['deEditSm','MATHS']].forEach(([eid,subj])=>{deG(eid).value=m[subj]!=null?m[subj]:'';});
+  [['deEditTb','BIO'],['deEditTc','CHM'],['deEditTp','PHY'],['deEditTm','MATHS']].forEach(([eid,subj])=>{deG(eid).value=t[subj]||e.total||60;});
+  deG('deEditPrev').style.display='none';
+  deG('moDeEditExam').style.display='flex';
+};
+window.deLivePreviewEdit = function(){
+  const scores=[deG('deEditSb'),deG('deEditSc'),deG('deEditSp'),deG('deEditSm')].map(el=>parseFloat(el.value));
+  const tots=[deG('deEditTb'),deG('deEditTc'),deG('deEditTp'),deG('deEditTm')].map(el=>parseFloat(el.value)||60);
+  const valid=scores.filter(v=>!isNaN(v));if(!valid.length){deG('deEditPrev').style.display='none';return;}
+  const sc=scores.reduce((s,v,i)=>isNaN(v)?s:s+v,0);const mx=scores.reduce((s,v,i)=>isNaN(v)?s:s+tots[i],0);
+  const p=mx>0?Math.round(sc/mx*100):0;const g=grd(p);
+  deG('deEditPrev').style.display='';deG('deEditPrev').innerHTML=`<strong>${sc}/${mx}</strong> &nbsp; <strong style="color:${g.c}">${p}% — Grade ${g.g}</strong>`;
+};
+window.deSaveEditExam = async function(){
+  const id=deG('deEditExamId').value;
+  const e=(window._DB_E||[]).find(ex=>ex.id===id);if(!e)return;
+  const marks={};const totals={};
+  [['deEditSb','BIO'],['deEditSc','CHM'],['deEditSp','PHY'],['deEditSm','MATHS']].forEach(([eid,subj])=>{const v=parseFloat(deG(eid).value);marks[subj]=isNaN(v)?null:v;});
+  [['deEditTb','BIO'],['deEditTc','CHM'],['deEditTp','PHY'],['deEditTm','MATHS']].forEach(([eid,subj])=>{totals[subj]=parseFloat(deG(eid).value)||60;});
+  try{await window._saveExam({...e,marks,totals,date:deG('deEditExamDate').value,updatedAt:new Date().toISOString()});toast('Exam updated!');closeMoDE('moDeEditExam');}
+  catch(err){toast('Save failed: '+err.message,'er');}
+};
+window.deDeleteExam = async function(id){
+  if(!confirm('Delete this exam record?')) return;
+  try{await window._deleteExam(id);toast('Deleted.','wa');}
+  catch(e){toast('Delete failed: '+e.message,'er');}
+};
+
+// ── DE Bulk tab switch ──
+window.deSwitchBulkTab = function(tab){
+  deG('deBulkStuPanel').style.display=tab==='students'?'':'none';
+  deG('deBulkExmPanel').style.display=tab==='exams'?'':'none';
+  deG('deBTabStu').className='tab'+(tab==='students'?' active':'');
+  deG('deBTabExm').className='tab'+(tab==='exams'?' active':'');
+};
+
+// ── DE Bulk Students ──
+window.deParseBulkStudents = function(){
+  const lines=(deG('deBulkStuText').value||'').split('\n').map(l=>l.trim()).filter(Boolean);
+  _deBulkParsedStudents=[];
+  const preview=lines.map((line,i)=>{
+    const parts=line.split(',').map(p=>p.trim());
+    if(parts.length<2){_deBulkParsedStudents.push(null);return`<div class="bulk-preview-row er"><span class="bulk-row-num">${i+1}</span><span>Error: need at least Roll, Name</span></div>`;}
+    const [roll,name,batch='',phone='']= parts;
+    if(!roll||!name){_deBulkParsedStudents.push(null);return`<div class="bulk-preview-row er"><span class="bulk-row-num">${i+1}</span><span>Missing roll or name</span></div>`;}
+    const s={id:'s_'+Date.now()+'_'+i,roll,name,batch,phone,note:'',createdAt:new Date().toISOString()};
+    _deBulkParsedStudents.push(s);
+    return`<div class="bulk-preview-row ok"><span class="bulk-row-num">${i+1}</span><span><strong>${roll}</strong> — ${name}${batch?' ['+batch+']':''}${phone?' 📞'+phone:''}</span></div>`;
+  }).join('');
+  deG('deBulkStuPreview').innerHTML=preview||'<div style="color:var(--t3);font-size:12px;padding:8px">Nothing to preview.</div>';
+  const valid=_deBulkParsedStudents.filter(Boolean).length;
+  deG('deBtnBulkStuSave').style.display=valid?'':'none';
+  deG('deBtnBulkStuSave').textContent=`Save ${valid} Student${valid===1?'':'s'}`;
+};
+window.deParseBulkStudentsLive = function(){ /* debounce-free live parse */ };
+window.deSaveBulkStudents = async function(){
+  const valid=_deBulkParsedStudents.filter(Boolean);if(!valid.length)return;
+  const existing=window._DB_S||[];let saved=0,skipped=0;
+  for(const s of valid){
+    if(existing.find(e=>e.roll===s.roll)){skipped++;continue;}
+    try{await window._saveStudent(s);saved++;}catch(e){toast('Error: '+e.message,'er');}
+  }
+  toast(`Saved ${saved} students${skipped?' ('+skipped+' skipped — duplicate roll)':''}`);
+  deG('deBulkStuText').value='';deG('deBulkStuPreview').innerHTML='';deG('deBtnBulkStuSave').style.display='none';_deBulkParsedStudents=[];
+};
+
+// ── DE Bulk Exams ──
+window.deBulkSetType = function(t){
+  _deBulkType=t;
+  deG('deBulkTtMT').className='tt-btn'+(t==='MT'?' tt-mt':'');
+  deG('deBulkTtWE').className='tt-btn'+(t==='WE'?' tt-we':'');
+  deG('deBulkNumPfx').textContent=t;
+};
+window.deParseBulkExams = function(){
+  const lines=(deG('deBulkExmText').value||'').split('\n').map(l=>l.trim()).filter(Boolean);
+  const num=parseInt(deG('deBulkNum').value);
+  const date=deG('deBulkDate').value;
+  const tb=parseFloat(deG('deBulkTb').value)||60;const tc=parseFloat(deG('deBulkTc').value)||60;
+  const tp=parseFloat(deG('deBulkTp').value)||60;const tm=parseFloat(deG('deBulkTm').value)||60;
+  if(!num){toast('Enter exam number first','er');return;}
+  const stu=window._DB_S||[];
+  _deBulkParsedExams=[];
+  const preview=lines.map((line,i)=>{
+    const parts=line.split(',').map(p=>p.trim());
+    const roll=parts[0];const s=stu.find(st=>st.roll===roll);
+    if(!s){_deBulkParsedExams.push(null);return`<div class="bulk-preview-row er"><span class="bulk-row-num">${i+1}</span><span>Roll "${roll}" not found in students list</span></div>`;}
+    const bv=parseFloat(parts[1]),cv=parseFloat(parts[2]),pv=parseFloat(parts[3]),mv=parseFloat(parts[4]);
+    const marks={BIO:isNaN(bv)?null:bv,CHM:isNaN(cv)?null:cv,PHY:isNaN(pv)?null:pv,MATHS:isNaN(mv)?null:mv};
+    const totals={BIO:tb,CHM:tc,PHY:tp,MATHS:tm};
+    const sc=[bv,cv,pv,mv].filter(v=>!isNaN(v)).reduce((a,b)=>a+b,0);
+    const mx=[bv,cv,pv,mv].reduce((a,v,j)=>isNaN(v)?a:a+[tb,tc,tp,tm][j],0);
+    const p=mx>0?Math.round(sc/mx*100):0;const g=grd(p);
+    const e={id:`e_${Date.now()}_${i}`,studentId:s.id,type:_deBulkType,examNum:num,examName:`${_deBulkType} ${num}`,date,marks,totals,createdAt:new Date().toISOString()};
+    _deBulkParsedExams.push(e);
+    return`<div class="bulk-preview-row ok"><span class="bulk-row-num">${i+1}</span><span><strong>${roll}</strong> — ${s.name} &nbsp; BIO:${isNaN(bv)?'—':bv} CHM:${isNaN(cv)?'—':cv} PHY:${isNaN(pv)?'—':pv} MTH:${isNaN(mv)?'—':mv} &nbsp; <strong style="color:${g.c}">${p}% ${g.g}</strong></span></div>`;
+  }).join('');
+  deG('deBulkExmPreview').innerHTML=preview||'<div style="color:var(--t3);font-size:12px;padding:8px">Nothing to preview.</div>';
+  const valid=_deBulkParsedExams.filter(Boolean).length;
+  deG('deBtnBulkExmSave').style.display=valid?'':'none';
+  deG('deBtnBulkExmSave').textContent=`Save ${valid} Record${valid===1?'':'s'}`;
+};
+window.deSaveBulkExams = async function(){
+  const valid=_deBulkParsedExams.filter(Boolean);if(!valid.length)return;
+  let saved=0;
+  for(const e of valid){try{await window._saveExam(e);saved++;}catch(err){toast('Error: '+err.message,'er');}}
+  toast(`Saved ${saved} exam records!`);
+  deG('deBulkExmText').value='';deG('deBulkExmPreview').innerHTML='';deG('deBtnBulkExmSave').style.display='none';_deBulkParsedExams=[];
+};
+
+// ── DE init ──
+deG('deEDate') && (deG('deEDate').value = new Date().toISOString().split('T')[0]);
+deG('deBulkDate') && (deG('deBulkDate').value = new Date().toISOString().split('T')[0]);
 </script>
 </body>
 </html>
