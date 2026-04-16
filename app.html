@@ -67,7 +67,7 @@ document.getElementById('loadingOverlay').style.display = 'flex';
 
 onAuthStateChanged(auth, async user => {
   if (!user) {
-    window.location.href = 'login.html';
+    window.location.href = 'index.html';
     return;
   }
 
@@ -194,7 +194,7 @@ window._loadAllMentors = async function() {
 window._logout = async function() {
   window._unsubscribers.forEach(fn => fn());
   await signOut(auth);
-  window.location.href = 'login.html';
+  window.location.href = 'index.html';
 };
 </script>
 
