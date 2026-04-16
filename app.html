@@ -669,7 +669,15 @@ tr:last-child td{border-bottom:none}
         <div><h1><i class="fa-solid fa-crown" style="color:var(--acc2);font-size:16px"></i> All Mentors Overview</h1><p>Institute-wide view across all mentors</p></div>
         <button class="btn btn-bulk btn-sm" onclick="loadOwnerOverview()"><i class="fa-solid fa-rotate"></i> Refresh</button>
       </div>
+      <!-- Owner tabs -->
+      <div class="tabs" style="margin-bottom:18px">
+        <button class="tab active" id="ownerTab-mentors" onclick="ownerTabSwitch('mentors',this)"><i class="fa-solid fa-users-line" style="margin-right:5px"></i>Mentors Overview</button>
+        <button class="tab" id="ownerTab-students" onclick="ownerTabSwitch('students',this)"><i class="fa-solid fa-users" style="margin-right:5px"></i>All Students</button>
+        <button class="tab" id="ownerTab-exams" onclick="ownerTabSwitch('exams',this)"><i class="fa-solid fa-file-pen" style="margin-right:5px"></i>All Exam Data</button>
+      </div>
       <div id="ownerContent"><div class="empty"><div class="empty-ic"><i class="fa-solid fa-crown"></i></div><p>Loading mentor data…</p></div></div>
+      <div id="ownerAllStudentsContent" style="display:none"></div>
+      <div id="ownerAllExamsContent" style="display:none"></div>
     </div>
 
     <!-- STUDENTS -->
@@ -1737,11 +1745,127 @@ function renderInsights(){
 // ══════════════════════════════════════════════════
 //  OWNER OVERVIEW — see all mentors' data
 // ══════════════════════════════════════════════════
+window._ownerAllData = null; // cache
+let _ownerExamSearchQ='';
+let _ownerStuSearchQ='';
+
+function ownerTabSwitch(tab, el){
+  ['mentors','students','exams'].forEach(t=>{
+    document.getElementById('ownerTab-'+t).classList.remove('active');
+    document.getElementById(t==='mentors'?'ownerContent':('ownerAll'+(t==='students'?'Students':'Exams')+'Content')).style.display='none';
+  });
+  if(el)el.classList.add('active');
+  if(tab==='mentors'){document.getElementById('ownerContent').style.display='';}
+  else if(tab==='students'){document.getElementById('ownerAllStudentsContent').style.display='';renderOwnerAllStudents();}
+  else{document.getElementById('ownerAllExamsContent').style.display='';renderOwnerAllExams();}
+}
+
+function renderOwnerAllStudents(){
+  const el=document.getElementById('ownerAllStudentsContent');if(!el)return;
+  const allData=window._ownerAllData;
+  if(!allData){el.innerHTML=`<div class="empty"><p>Data not loaded yet. Click Refresh.</p></div>`;return;}
+  const q=(_ownerStuSearchQ||'').toLowerCase();
+  // Build flat list of all students with their mentor name and performance
+  const rows=[];
+  Object.entries(allData).forEach(([uid,data])=>{
+    data.students.forEach(s=>{
+      const exams=data.exams.filter(e=>e.studentId===s.id);
+      const allPcts=exams.map(e=>getExamOverallPct(e)).filter(v=>v!=null);
+      const oAvg=allPcts.length?Math.round(avg(allPcts)):null;
+      const subjAvgs=SUBJ.map(subj=>{const v=exams.filter(e=>e.marks[subj]!=null).map(e=>getSubjPct(e,subj));return v.length?Math.round(avg(v)):null;});
+      rows.push({s,mentorName:data.name,mentorUid:uid,exams,oAvg,subjAvgs,ecnt:exams.length});
+    });
+  });
+  const filtered=q?rows.filter(r=>r.s.name.toLowerCase().includes(q)||r.s.roll.toLowerCase().includes(q)||r.mentorName.toLowerCase().includes(q)||(r.s.batch||'').toLowerCase().includes(q)):rows;
+  filtered.sort((a,b)=>{
+    if(a.oAvg===null&&b.oAvg===null)return 0;
+    if(a.oAvg===null)return 1;if(b.oAvg===null)return -1;
+    return b.oAvg-a.oAvg;
+  });
+  el.innerHTML=`<div class="ph" style="margin-bottom:12px">
+    <div><h2 style="font-size:16px;font-weight:800">${filtered.length} Student${filtered.length!==1?'s':''} (All Mentors)</h2></div>
+    <div class="sw" style="width:280px"><span class="sw-ic"><i class="fa-solid fa-magnifying-glass"></i></span>
+      <input type="text" placeholder="Search name, roll, mentor, batch…" id="ownerStuSearch" value="${_ownerStuSearchQ}" oninput="_ownerStuSearchQ=this.value;renderOwnerAllStudents()">
+    </div>
+  </div>
+  ${filtered.length===0?`<div class="empty"><p>No students found</p></div>`:
+  `<div class="tw"><table><thead><tr>
+    <th>#</th><th>Student</th><th>Roll</th><th>Batch</th><th>Mentor</th><th>Exams</th>
+    <th style="color:var(--bio)">BIO</th><th style="color:var(--chm)">CHM</th><th style="color:var(--phy)">PHY</th><th style="color:var(--mth)">MTH</th>
+    <th>Avg %</th><th>Grade</th>
+  </tr></thead><tbody>
+  ${filtered.map((r,i)=>{
+    const g2=r.oAvg!=null?grd(r.oAvg):{g:'—',c:'var(--t3)'};
+    return`<tr>
+      <td style="color:var(--t4)">${i+1}</td>
+      <td style="font-weight:600">${r.s.name}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${r.s.roll}</td>
+      <td style="color:var(--t3)">${r.s.batch||'—'}</td>
+      <td><span style="background:rgba(167,139,250,.12);color:var(--acc2);border:1px solid rgba(167,139,250,.25);border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700">${r.mentorName}</span></td>
+      <td class="tc">${r.ecnt}</td>
+      ${r.subjAvgs.map((v,si)=>`<td class="tc" style="color:${SUBJ_C[SUBJ[si]]}">${v!=null?v+'%':'—'}</td>`).join('')}
+      <td class="tc" style="color:${g2.c};font-weight:700">${r.oAvg!=null?r.oAvg+'%':'—'}</td>
+      <td><span style="color:${g2.c};font-weight:900;font-family:'JetBrains Mono',monospace">${g2.g}</span></td>
+    </tr>`;
+  }).join('')}
+  </tbody></table></div>`}`;
+}
+
+function renderOwnerAllExams(){
+  const el=document.getElementById('ownerAllExamsContent');if(!el)return;
+  const allData=window._ownerAllData;
+  if(!allData){el.innerHTML=`<div class="empty"><p>Data not loaded yet. Click Refresh.</p></div>`;return;}
+  const q=(_ownerExamSearchQ||'').toLowerCase();
+  // Build flat exam rows
+  const rows=[];
+  Object.entries(allData).forEach(([uid,data])=>{
+    data.exams.forEach(e=>{
+      const s=data.students.find(st=>st.id===e.studentId);
+      rows.push({e,s,mentorName:data.name,mentorUid:uid});
+    });
+  });
+  const filtered=q?rows.filter(r=>(r.s&&(r.s.name.toLowerCase().includes(q)||r.s.roll.toLowerCase().includes(q)))||r.mentorName.toLowerCase().includes(q)||(r.e.examName||'').toLowerCase().includes(q)):rows;
+  filtered.sort((a,b)=>{if(a.e.date&&b.e.date)return new Date(b.e.date)-new Date(a.e.date);return new Date(b.e.createdAt||0)-new Date(a.e.createdAt||0);});
+  el.innerHTML=`<div class="ph" style="margin-bottom:12px">
+    <div><h2 style="font-size:16px;font-weight:800">${filtered.length} Exam Record${filtered.length!==1?'s':''} (All Mentors)</h2></div>
+    <div class="sw" style="width:300px"><span class="sw-ic"><i class="fa-solid fa-magnifying-glass"></i></span>
+      <input type="text" placeholder="Search student, mentor, exam…" id="ownerExamSearch" value="${_ownerExamSearchQ}" oninput="_ownerExamSearchQ=this.value;renderOwnerAllExams()">
+    </div>
+  </div>
+  ${filtered.length===0?`<div class="empty"><p>No exam records found</p></div>`:
+  `<div class="tw"><table><thead><tr>
+    <th>#</th><th>Student</th><th>Roll</th><th>Mentor</th><th>Exam</th><th>Type</th><th>Date</th>
+    <th style="color:var(--bio)">BIO</th><th style="color:var(--chm)">CHM</th><th style="color:var(--phy)">PHY</th><th style="color:var(--mth)">MTH</th>
+    <th>Total</th><th>%</th><th>Grade</th>
+  </tr></thead><tbody>
+  ${filtered.map((r,i)=>{
+    const {e,s,mentorName}=r;
+    const sc=getExamTotalScored(e);const mx=getExamTotalMax(e);const p=mx>0?pct(sc,mx):null;const g2=p!=null?grd(p):{g:'—',c:'var(--t3)'};
+    return`<tr>
+      <td style="color:var(--t4)">${i+1}</td>
+      <td style="font-weight:600">${s?s.name:'?'}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${s?s.roll:'?'}</td>
+      <td><span style="background:rgba(167,139,250,.12);color:var(--acc2);border:1px solid rgba(167,139,250,.25);border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700">${mentorName}</span></td>
+      <td style="font-family:'JetBrains Mono',monospace;font-weight:600">${e.examName}</td>
+      <td><span class="badge b-${e.type.toLowerCase()}">${e.type}</span></td>
+      <td style="font-size:11px;color:var(--t2)">${e.date||'—'}</td>
+      ${SUBJ.map(subj=>{const t=getSubjTotal(e,subj);return`<td class="tc" style="color:${SUBJ_C[subj]}">${e.marks[subj]!=null?e.marks[subj]+'/'+t:'—'}</td>`;}).join('')}
+      <td class="tc">${mx>0?sc+'/'+mx:'—'}</td>
+      <td class="tc" style="color:${g2.c};font-weight:700">${p!=null?p+'%':'—'}</td>
+      <td><span style="color:${g2.c};font-weight:900;font-family:'JetBrains Mono',monospace">${g2.g}</span></td>
+    </tr>`;
+  }).join('')}
+  </tbody></table></div>`}`;
+}
+
 async function loadOwnerOverview(){
   const el=document.getElementById('ownerContent');if(!el)return;
   el.innerHTML=`<div style="text-align:center;padding:40px;color:var(--t2)"><div class="load-spinner" style="margin:0 auto 12px"></div><p>Loading all mentor data…</p></div>`;
+  // Reset tab to mentors
+  ownerTabSwitch('mentors',document.getElementById('ownerTab-mentors'));
   try{
     const allData=await window._loadAllMentors();
+    window._ownerAllData=allData;
     let totalStudents=0,totalExams=0;
     let html=`<div class="stat-row" id="ownerStats"></div><div class="sg" id="ownerMentorGrid"></div><div id="ownerDetails"></div>`;
     el.innerHTML=html;
@@ -1762,7 +1886,7 @@ async function loadOwnerOverview(){
         <div style="margin-top:10px;font-size:10px;color:var(--acc);font-weight:600">Click to view this mentor's data →</div>
       </div>`;
     });
-    document.getElementById('ownerStats').innerHTML=`<div class="stat acc"><div class="stat-v">${Object.keys(allData).length}</div><div class="stat-l">Mentors</div></div><div class="stat acc2"><div class="stat-v">${totalStudents}</div><div class="stat-l">Total Students</div></div><div class="stat acc3"><div class="stat-v">${totalExams}</div><div class="stat-l">Total Records</div></div>`;
+    document.getElementById('ownerStats').innerHTML=`<div class="stat acc"><div class="stat-v">${Object.keys(allData).length}</div><div class="stat-l">Mentors</div></div><div class="stat acc2" style="cursor:pointer" onclick="ownerTabSwitch('students',document.getElementById('ownerTab-students'))"><div class="stat-v">${totalStudents}</div><div class="stat-l">Total Students</div><div class="stat-sub" style="color:var(--acc)">View All →</div></div><div class="stat acc3" style="cursor:pointer" onclick="ownerTabSwitch('exams',document.getElementById('ownerTab-exams'))"><div class="stat-v">${totalExams}</div><div class="stat-l">Total Records</div><div class="stat-sub" style="color:var(--acc)">View All →</div></div>`;
     document.getElementById('ownerMentorGrid').innerHTML=mentorCards.join('');
   }catch(e){el.innerHTML=`<div class="empty"><p style="color:var(--acc5)">Error loading data: ${e.message}</p></div>`;}
 }
