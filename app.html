@@ -41,8 +41,11 @@ const OWNER_UID = "oL6xAICq4Jg1cPvwwDuazRHBwi62";
 // ══════════════════════════════════════════════════════════
 // 🔧 DATA ENTRY UID — create a Firebase Auth account for
 //    the data entry person, then paste their UID here.
+//    ⚠️  REQUIRED: Replace "DATA_ENTRY_UID_HERE" with the
+//    actual UID from Firebase Auth → Users, or data entry
+//    login will be denied with a "missing permission" error.
 // ══════════════════════════════════════════════════════════
-const DATA_ENTRY_UID = "6ft3u2oXCgVlvGPLwLhqYMJjbPZ2";
+const DATA_ENTRY_UID = "DATA_ENTRY_UID_HERE"; // ← PASTE REAL UID HERE
 
 // ══════════════════════════════════════════════════════════
 // 🔧 STEP 3: Set display names for each mentor UID.
@@ -80,7 +83,12 @@ onAuthStateChanged(auth, async user => {
 
   window._currentUID  = user.uid;
   window._isOwner     = (user.uid === OWNER_UID);
-  window._isDataEntry = (user.uid === DATA_ENTRY_UID);
+  // Guard: if DATA_ENTRY_UID is still placeholder, show a clear error so the
+  // admin knows exactly what to fix instead of getting a mysterious "permission denied".
+  if (DATA_ENTRY_UID === "DATA_ENTRY_UID_HERE") {
+    console.warn("⚠️ DATA_ENTRY_UID has not been configured. Open the file and replace DATA_ENTRY_UID_HERE with the actual Firebase UID of the data entry account.");
+  }
+  window._isDataEntry = (DATA_ENTRY_UID !== "DATA_ENTRY_UID_HERE" && user.uid === DATA_ENTRY_UID);
   window._viewingUID  = user.uid; // default: own data
 
   // ── Data Entry person: show dedicated UI ──
@@ -100,7 +108,7 @@ onAuthStateChanged(auth, async user => {
     document.getElementById('loadingOverlay').style.display = 'none';
     document.getElementById('appMain').style.display = 'none';
     document.getElementById('deApp').style.display = 'flex';
-    deNav('de-students', null);
+    deNav('de-students', document.getElementById('de-nav-de-students'));
     return;
   }
 
@@ -1915,7 +1923,9 @@ window.deNav = function(page, el){
   document.querySelectorAll('#deApp .page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('#deSidebar .sb-item').forEach(b=>b.classList.remove('active'));
   deG('pg-'+page).classList.add('active');
-  if(el) el.classList.add('active');
+  // If no button element passed, find the correct nav button by ID
+  const navBtn = el || deG('de-nav-'+page);
+  if(navBtn) navBtn.classList.add('active');
   const t={'de-students':'Students','de-exams':'Exam Entry','de-bulk':'Bulk Entry'};
   deG('deTopbarTitle').innerHTML=`<span>${t[page]||page}</span>`;
   if(page==='de-students') deRenderStudents();
