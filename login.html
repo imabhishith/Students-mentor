@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>CRISPR — Login</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+  // ══════════════════════════════════════════════════════════
+  // 🔧 STEP 1: Paste your Firebase config here
+  //    (Get it from Firebase Console → Project Settings)
+  // ══════════════════════════════════════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyBLpXS6kq5_aBkVIV5EU_6qIy2e2t254Zw",
+  authDomain: "crispr-c69c7.firebaseapp.com",
+  projectId: "crispr-c69c7",
+  storageBucket: "crispr-c69c7.firebasestorage.app",
+  messagingSenderId: "550912154892",
+  appId: "1:550912154892:web:0e216c348db5b09813fd29",
+  measurementId: "G-Y5NF1PEPKL"
+};
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+
+  // If already logged in, redirect to app
+  onAuthStateChanged(auth, user => {
+    if (user) {
+      window.location.href = 'app.html';
+    }
+  });
+
+  // Expose login function
+  window._doLogin = async (email, password) => {
+    return signInWithEmailAndPassword(auth, email, password);
+  };
+</script>
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased}
+:root{
+  --bg:#07090f;
+  --s1:#0d111c;
+  --s2:#131926;
+  --s3:#1a2235;
+  --acc:#4f9eff;
+  --acc2:#a78bfa;
+  --acc3:#34d399;
+  --acc5:#f87171;
+  --t1:#f0f4ff;
+  --t2:#8892b0;
+  --t3:#4a5568;
+  --bdr:rgba(255,255,255,0.06);
+  --bdr2:rgba(255,255,255,0.12);
+  --r:10px;
+}
+body{
+  font-family:'Outfit',sans-serif;
+  background:var(--bg);
+  color:var(--t1);
+  min-height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+  position:relative;
+}
+
+/* Animated background */
+.bg-glow{
+  position:fixed;inset:0;pointer-events:none;z-index:0;
+}
+.bg-glow::before{
+  content:'';position:absolute;
+  width:600px;height:600px;
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(79,158,255,0.07) 0%,transparent 70%);
+  top:-100px;left:-100px;
+  animation:drift1 12s ease-in-out infinite;
+}
+.bg-glow::after{
+  content:'';position:absolute;
+  width:500px;height:500px;
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(167,139,250,0.07) 0%,transparent 70%);
+  bottom:-100px;right:-100px;
+  animation:drift2 14s ease-in-out infinite;
+}
+@keyframes drift1{0%,100%{transform:translate(0,0)}50%{transform:translate(60px,40px)}}
+@keyframes drift2{0%,100%{transform:translate(0,0)}50%{transform:translate(-50px,-30px)}}
+
+/* Grid lines */
+.grid-lines{
+  position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.018) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,0.018) 1px,transparent 1px);
+  background-size:48px 48px;
+}
+
+.login-wrap{
+  position:relative;z-index:10;
+  width:100%;max-width:420px;
+  padding:16px;
+  animation:fadeUp .4s ease both;
+}
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+
+.logo-area{
+  text-align:center;
+  margin-bottom:36px;
+}
+.logo-icon{
+  width:56px;height:56px;
+  border-radius:14px;
+  background:linear-gradient(135deg,var(--acc),var(--acc2));
+  display:inline-flex;align-items:center;justify-content:center;
+  font-size:18px;font-weight:900;color:#fff;
+  letter-spacing:1px;margin-bottom:14px;
+  box-shadow:0 8px 32px rgba(79,158,255,0.35);
+}
+.logo-name{
+  font-size:22px;font-weight:900;letter-spacing:3px;color:var(--t1);
+  display:block;
+}
+.logo-name span{color:var(--acc)}
+.logo-sub{
+  font-size:11px;font-weight:500;color:var(--t3);
+  letter-spacing:2px;text-transform:uppercase;margin-top:4px;
+}
+
+.card{
+  background:var(--s1);
+  border:1px solid var(--bdr2);
+  border-radius:16px;
+  padding:32px;
+}
+
+.card-head{
+  margin-bottom:24px;
+}
+.card-head h2{
+  font-size:18px;font-weight:800;
+  letter-spacing:-.2px;color:var(--t1);
+}
+.card-head p{
+  font-size:12px;color:var(--t3);margin-top:4px;
+}
+
+.fg{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+label{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3)}
+.input-wrap{position:relative}
+.input-wrap i{
+  position:absolute;left:13px;top:50%;transform:translateY(-50%);
+  color:var(--t3);font-size:13px;pointer-events:none;
+  transition:color .2s;
+}
+input{
+  width:100%;
+  background:var(--s2);
+  border:1px solid var(--bdr);
+  border-radius:var(--r);
+  padding:11px 12px 11px 38px;
+  color:var(--t1);
+  font-family:'Outfit',sans-serif;
+  font-size:14px;
+  outline:none;
+  transition:border-color .2s,background .2s;
+}
+input:focus{border-color:rgba(79,158,255,.5);background:var(--s3)}
+input:focus+i,i:has(+input:focus){color:var(--acc)}
+.input-wrap:focus-within i{color:var(--acc)}
+input::placeholder{color:var(--t3)}
+
+.eye-btn{
+  position:absolute;right:12px;top:50%;transform:translateY(-50%);
+  background:none;border:none;color:var(--t3);cursor:pointer;
+  padding:4px;font-size:13px;transition:color .2s;
+}
+.eye-btn:hover{color:var(--t2)}
+
+.btn-login{
+  width:100%;padding:13px;
+  border-radius:var(--r);border:none;cursor:pointer;
+  font-family:'Outfit',sans-serif;font-weight:700;font-size:14px;
+  letter-spacing:.5px;
+  background:linear-gradient(135deg,var(--acc),#2563eb);
+  color:#fff;
+  transition:all .2s;
+  position:relative;overflow:hidden;
+  margin-top:4px;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.btn-login:hover{filter:brightness(1.1);transform:translateY(-1px);box-shadow:0 8px 24px rgba(79,158,255,0.35)}
+.btn-login:active{transform:translateY(0)}
+.btn-login:disabled{opacity:.6;cursor:not-allowed;transform:none}
+
+.error-box{
+  background:rgba(248,113,113,.08);
+  border:1px solid rgba(248,113,113,.25);
+  border-radius:var(--r);
+  padding:11px 14px;
+  font-size:12px;color:var(--acc5);
+  margin-bottom:16px;display:none;
+  align-items:center;gap:8px;
+}
+.error-box.show{display:flex}
+
+.accounts-hint{
+  margin-top:20px;
+  padding:14px;
+  background:var(--s2);
+  border:1px solid var(--bdr);
+  border-radius:var(--r);
+  font-size:11px;color:var(--t3);
+  line-height:1.8;
+}
+.accounts-hint strong{color:var(--t2);display:block;margin-bottom:4px;font-size:10px;letter-spacing:1px;text-transform:uppercase}
+
+.spinner{
+  width:18px;height:18px;
+  border:2px solid rgba(255,255,255,.3);
+  border-top-color:#fff;
+  border-radius:50%;
+  animation:spin .7s linear infinite;display:none;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.btn-login.loading .btn-text{display:none}
+.btn-login.loading .spinner{display:block}
+
+.footer-note{
+  text-align:center;
+  font-size:11px;color:var(--t3);
+  margin-top:20px;
+  letter-spacing:.3px;
+}
+</style>
+</head>
+<body>
+<div class="bg-glow"></div>
+<div class="grid-lines"></div>
+
+<div class="login-wrap">
+  <div class="logo-area">
+    <div class="logo-icon">CR</div>
+    <span class="logo-name"><span>CRISPR</span></span>
+    <div class="logo-sub">Mentor Analytics Platform</div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>Sign in to your account</h2>
+      <p>Enter your mentor credentials below</p>
+    </div>
+
+    <div class="error-box" id="errBox">
+      <i class="fa-solid fa-circle-exclamation"></i>
+      <span id="errMsg">Invalid credentials</span>
+    </div>
+
+    <div class="fg">
+      <label>Email Address</label>
+      <div class="input-wrap">
+        <i class="fa-solid fa-envelope"></i>
+        <input type="email" id="loginEmail" placeholder="mentor@institute.com" autocomplete="email">
+      </div>
+    </div>
+
+    <div class="fg">
+      <label>Password</label>
+      <div class="input-wrap">
+        <i class="fa-solid fa-lock"></i>
+        <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password" id="pwdInput">
+        <button class="eye-btn" onclick="togglePwd()" id="eyeBtn" type="button">
+          <i class="fa-solid fa-eye" id="eyeIcon"></i>
+        </button>
+      </div>
+    </div>
+
+    <button class="btn-login" id="loginBtn" onclick="doLogin()">
+      <div class="spinner" id="spinner"></div>
+      <span class="btn-text"><i class="fa-solid fa-arrow-right-to-bracket"></i> Sign In</span>
+    </button>
+
+    <div class="accounts-hint">
+      <strong>Accounts</strong>
+      6 Mentor accounts + 1 Owner account<br>
+      Mentors see only their own students.<br>
+      Owner sees all mentors' data.
+    </div>
+  </div>
+
+  <div class="footer-note">CRISPR &copy; 2025 &mdash; Your data is stored securely in Firebase</div>
+</div>
+
+<script>
+function togglePwd(){
+  const inp = document.getElementById('loginPassword');
+  const icon = document.getElementById('eyeIcon');
+  if(inp.type === 'password'){
+    inp.type = 'text';
+    icon.className = 'fa-solid fa-eye-slash';
+  } else {
+    inp.type = 'password';
+    icon.className = 'fa-solid fa-eye';
+  }
+}
+
+document.getElementById('loginPassword').addEventListener('keydown', e => {
+  if(e.key === 'Enter') doLogin();
+});
+document.getElementById('loginEmail').addEventListener('keydown', e => {
+  if(e.key === 'Enter') document.getElementById('loginPassword').focus();
+});
+
+async function doLogin(){
+  const email = document.getElementById('loginEmail').value.trim();
+  const pwd = document.getElementById('loginPassword').value;
+  const btn = document.getElementById('loginBtn');
+  const errBox = document.getElementById('errBox');
+  const errMsg = document.getElementById('errMsg');
+
+  if(!email || !pwd){
+    errMsg.textContent = 'Please enter email and password.';
+    errBox.classList.add('show');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.classList.add('loading');
+  errBox.classList.remove('show');
+
+  try {
+    await window._doLogin(email, pwd);
+    // onAuthStateChanged will redirect
+  } catch(err){
+    btn.disabled = false;
+    btn.classList.remove('loading');
+    const map = {
+      'auth/invalid-credential': 'Incorrect email or password.',
+      'auth/user-not-found': 'No account found with this email.',
+      'auth/wrong-password': 'Incorrect password.',
+      'auth/too-many-requests': 'Too many attempts. Try again later.',
+      'auth/network-request-failed': 'Network error. Check your connection.',
+    };
+    errMsg.textContent = map[err.code] || 'Login failed. Please try again.';
+    errBox.classList.add('show');
+  }
+}
+</script>
+</body>
+</html>
