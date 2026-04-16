@@ -172,7 +172,7 @@ window.loadUserData = async function(uid) {
 function refreshUI() {
   if (typeof popSelects === 'function') { popSelects(); updateSBCount(); }
   const page = window._currentPage || 'dashboard';
-  if (page === 'dashboard' && typeof renderDashboard === 'function') renderDashboard();
+  if (typeof renderDashboard === 'function') renderDashboard();
   if (page === 'students'  && typeof renderStudents  === 'function') renderStudents();
   if (page === 'exams'     && typeof renderExamTable === 'function') { renderExamTable(); renderRecentEntries(); }
 }
@@ -2189,13 +2189,16 @@ window.deParseBulkStudents = function(){
 window.deParseBulkStudentsLive = function(){ /* debounce-free live parse */ };
 window.deSaveBulkStudents = async function(){
   const valid=_deBulkParsedStudents.filter(Boolean);if(!valid.length)return;
-  const existing=window._DB_S||[];let saved=0,skipped=0;
+  const existing=window._DB_S||[];let saved=0,skipped=0;const newStudents=[];
   for(const s of valid){
     if(existing.find(e=>e.roll===s.roll)){skipped++;continue;}
-    try{await window._saveStudent(s);saved++;}catch(e){toast('Error: '+e.message,'er');}
+    try{await window._saveStudent(s);newStudents.push(s);saved++;}catch(e){toast('Error: '+e.message,'er');}
   }
+  // Immediately update local cache
+  window._DB_S = [...existing, ...newStudents];
   toast(`Saved ${saved} students${skipped?' ('+skipped+' skipped — duplicate roll)':''}`);
   deG('deBulkStuText').value='';deG('deBulkStuPreview').innerHTML='';deG('deBtnBulkStuSave').style.display='none';_deBulkParsedStudents=[];
+  deRefreshUI();
 };
 
 // ── DE Bulk Exams ──
@@ -2224,7 +2227,7 @@ window.deParseBulkExams = function(){
     const sc=[bv,cv,pv,mv].filter(v=>!isNaN(v)).reduce((a,b)=>a+b,0);
     const mx=[bv,cv,pv,mv].reduce((a,v,j)=>isNaN(v)?a:a+[tb,tc,tp,tm][j],0);
     const p=mx>0?Math.round(sc/mx*100):0;const g=grd(p);
-    const e={id:`e_${Date.now()}_${i}`,studentId:s.id,type:_deBulkType,examNum:num,examName:`${_deBulkType} ${num}`,date,marks,totals,createdAt:new Date().toISOString()};
+    const e={id:`e_${Date.now()}_${Math.random().toString(36).slice(2,9)}_${i}`,studentId:s.id,type:_deBulkType,examNum:num,examName:`${_deBulkType} ${num}`,date,marks,totals,createdAt:new Date().toISOString()};
     _deBulkParsedExams.push(e);
     return`<div class="bulk-preview-row ok"><span class="bulk-row-num">${i+1}</span><span><strong>${roll}</strong> — ${s.name} &nbsp; BIO:${isNaN(bv)?'—':bv} CHM:${isNaN(cv)?'—':cv} PHY:${isNaN(pv)?'—':pv} MTH:${isNaN(mv)?'—':mv} &nbsp; <strong style="color:${g.c}">${p}% ${g.g}</strong></span></div>`;
   }).join('');
@@ -2237,8 +2240,12 @@ window.deSaveBulkExams = async function(){
   const valid=_deBulkParsedExams.filter(Boolean);if(!valid.length)return;
   let saved=0;
   for(const e of valid){try{await window._saveExam(e);saved++;}catch(err){toast('Error: '+err.message,'er');}}
+  // Immediately update local cache so mentor dashboard reflects new data
+  // (onSnapshot will also fire, this just ensures no delay)
+  window._DB_E = [...(window._DB_E||[]), ...valid.filter((_,i)=>i<saved)];
   toast(`Saved ${saved} exam records!`);
   deG('deBulkExmText').value='';deG('deBulkExmPreview').innerHTML='';deG('deBtnBulkExmSave').style.display='none';_deBulkParsedExams=[];
+  deRefreshUI();
 };
 
 // ── DE init ──
