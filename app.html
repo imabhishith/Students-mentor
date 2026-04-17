@@ -70,6 +70,7 @@ window._currentUID   = null;
 window._isOwner      = false;
 window._isDataEntry  = false;
 window._viewingUID   = null; // for owner: which mentor's data is shown
+window._ownerViewAll = false; // true = owner sees aggregated data from ALL mentors
 window._unsubscribers = [];
 
 // Show loading overlay while Firebase resolves auth
@@ -122,9 +123,15 @@ onAuthStateChanged(auth, async user => {
     document.getElementById('ownerPanelBtn').style.display = 'flex';
     document.getElementById('mentorSwitcher').style.display = 'flex';
     populateMentorSwitcher();
+    // Owner default: load ALL mentors' data merged
+    window._ownerViewAll = true;
+    window._viewingUID = user.uid;
+    await loadAllMentorsData();
+    document.getElementById('loadingOverlay').style.display = 'none';
+    return;
   }
 
-  // Load data for current user
+  // Load data for current user (mentor)
   await loadUserData(user.uid);
 
   document.getElementById('loadingOverlay').style.display = 'none';
@@ -195,7 +202,35 @@ window._deleteExam = async function(id) {
   await deleteDoc(doc(db, 'mentors', uid, 'exams', id));
 };
 
-// ── Owner: switch which mentor's data is viewed ──
+// ── Load ALL mentors' data merged into global DB (owner "view all" mode) ──
+window.loadAllMentorsData = async function() {
+  window._unsubscribers.forEach(fn => fn());
+  window._unsubscribers = [];
+  document.getElementById('loadingOverlay').style.display = 'flex';
+  document.getElementById('loadingMsg').textContent = 'Loading all mentors data…';
+  try {
+    let allStudents = [], allExams = [];
+    for (const [uid, name] of Object.entries(MENTOR_NAMES)) {
+      const stuSnap  = await getDocs(collection(db, 'mentors', uid, 'students'));
+      const examSnap = await getDocs(collection(db, 'mentors', uid, 'exams'));
+      const stuDocs  = stuSnap.docs.map(d => ({ ...d.data(), _mentorUid: uid, _mentorName: name }));
+      const exmDocs  = examSnap.docs.map(d => ({ ...d.data(), _mentorUid: uid, _mentorName: name }));
+      allStudents = allStudents.concat(stuDocs);
+      allExams    = allExams.concat(exmDocs);
+    }
+    window._DB_S = allStudents;
+    window._DB_E = allExams;
+    // Show "All Mentors" banner
+    const banner = document.getElementById('viewingBanner');
+    banner.textContent = `👑 Viewing: ALL MENTORS — ${allStudents.length} students, ${allExams.length} records`;
+    banner.style.display = 'block';
+    refreshUI();
+  } catch(e) {
+    console.error('Load all mentors error:', e);
+    toast('Error loading all mentors: ' + e.message, 'er');
+  }
+  document.getElementById('loadingOverlay').style.display = 'none';
+};
 function populateMentorSwitcher() {
   const sel = document.getElementById('mentorSelect');
   sel.innerHTML = Object.entries(MENTOR_NAMES).map(([uid, name]) =>
@@ -204,10 +239,18 @@ function populateMentorSwitcher() {
 }
 window._switchMentor = async function(uid) {
   window._viewingUID = uid;
+  window._ownerViewAll = false;
   const name = MENTOR_NAMES[uid] || uid;
   document.getElementById('viewingBanner').textContent = `Viewing: ${name}`;
   document.getElementById('viewingBanner').style.display = 'block';
   await loadUserData(uid);
+  if (typeof nav === 'function') nav('dashboard', null);
+};
+
+// ── Owner: back to view all mentors ──
+window._viewAllMentors = async function() {
+  window._ownerViewAll = true;
+  await loadAllMentorsData();
   if (typeof nav === 'function') nav('dashboard', null);
 };
 
@@ -592,7 +635,7 @@ tr:last-child td{border-bottom:none}
   <div class="sb-nav">
     <!-- Owner panel button (only shown to owner) -->
     <button id="ownerPanelBtn" onclick="nav('owner',this)">
-      <i class="fa-solid fa-crown" style="font-size:12px"></i> All Mentors View
+      <i class="fa-solid fa-crown" style="font-size:12px"></i> Mentor Cards
       <span id="ownerBadge">OWNER</span>
     </button>
 
@@ -616,6 +659,7 @@ tr:last-child td{border-bottom:none}
   <div id="mentorSwitcher">
     <select id="mentorSelect" class="fs" onchange="window._switchMentor(this.value)"></select>
     <button class="btn btn-g btn-sm" onclick="window._switchMentor(document.getElementById('mentorSelect').value)"><i class="fa-solid fa-arrow-right"></i></button>
+    <button class="btn btn-sm" style="background:rgba(167,139,250,.15);border:1px solid rgba(167,139,250,.3);color:var(--acc2);white-space:nowrap" onclick="window._viewAllMentors()" title="View all mentors data"><i class="fa-solid fa-layer-group"></i></button>
   </div>
 
   <div class="sb-footer">
@@ -669,21 +713,13 @@ tr:last-child td{border-bottom:none}
         <div><h1><i class="fa-solid fa-crown" style="color:var(--acc2);font-size:16px"></i> All Mentors Overview</h1><p>Institute-wide view across all mentors</p></div>
         <button class="btn btn-bulk btn-sm" onclick="loadOwnerOverview()"><i class="fa-solid fa-rotate"></i> Refresh</button>
       </div>
-      <!-- Owner tabs -->
-      <div class="tabs" style="margin-bottom:18px">
-        <button class="tab active" id="ownerTab-mentors" onclick="ownerTabSwitch('mentors',this)"><i class="fa-solid fa-users-line" style="margin-right:5px"></i>Mentors Overview</button>
-        <button class="tab" id="ownerTab-students" onclick="ownerTabSwitch('students',this)"><i class="fa-solid fa-users" style="margin-right:5px"></i>All Students</button>
-        <button class="tab" id="ownerTab-exams" onclick="ownerTabSwitch('exams',this)"><i class="fa-solid fa-file-pen" style="margin-right:5px"></i>All Exam Data</button>
-      </div>
       <div id="ownerContent"><div class="empty"><div class="empty-ic"><i class="fa-solid fa-crown"></i></div><p>Loading mentor data…</p></div></div>
-      <div id="ownerAllStudentsContent" style="display:none"></div>
-      <div id="ownerAllExamsContent" style="display:none"></div>
     </div>
 
     <!-- STUDENTS -->
     <div class="page" id="pg-students">
       <div class="ph">
-        <div><h1>Students</h1><p>All enrolled students with performance snapshot</p></div>
+        <div><h1 id="stuPageTitle">Students</h1><p id="stuPageSub">All enrolled students with performance snapshot</p></div>
         <div style="display:flex;gap:8px;align-items:center">
           <div class="sw" style="width:230px"><span class="sw-ic"><i class="fa-solid fa-magnifying-glass"></i></span><input type="text" placeholder="Search name or roll…" id="stSearch" oninput="renderStudents()"></div>
           <button class="btn btn-bulk btn-sm" onclick="openBulkStudents()"><i class="fa-solid fa-upload"></i> Bulk Add</button>
@@ -1318,7 +1354,14 @@ function nav(page,el){
   document.getElementById('topbarTitle').innerHTML=`<span>${activeBtn?activeBtn.textContent.trim():page}</span>`;
   killCharts();currentPage=page;window._currentPage=page;
   if(page==='dashboard')renderDashboard();
-  if(page==='students')renderStudents();
+  if(page==='students'){
+    const isOwnerAll = window._isOwner && window._ownerViewAll;
+    const stuTitle = document.getElementById('stuPageTitle');
+    const stuSub = document.getElementById('stuPageSub');
+    if(stuTitle) stuTitle.textContent = isOwnerAll ? 'All Students (Institute-Wide)' : 'Students';
+    if(stuSub) stuSub.textContent = isOwnerAll ? `${DB.s.length} students across all mentors` : 'All enrolled students with performance snapshot';
+    renderStudents();
+  }
   if(page==='exams'){popSelects();renderExamTable();renderRecentEntries();}
   if(page==='analysis'){popSelects();document.getElementById('aStu').value='';document.getElementById('aContent').innerHTML=`<div class="empty"><div class="empty-ic"><i class="fa-solid fa-chart-bar"></i></div><p>Select a student</p></div>`;}
   if(page==='targets'){popSelects();document.getElementById('tStu').value='';document.getElementById('tContent').innerHTML=`<div class="empty"><div class="empty-ic"><i class="fa-solid fa-bullseye"></i></div><p>Select a student</p></div>`;}
@@ -1471,6 +1514,7 @@ async function deleteStudent(id){
 
 function renderStudents(){
   const q=(document.getElementById('stSearch')||{}).value||'';
+  const isOwnerAll = window._isOwner && window._ownerViewAll;
   const stu=DB.s.filter(s=>!q||s.name.toLowerCase().includes(q.toLowerCase())||s.roll.toLowerCase().includes(q.toLowerCase()));
   const g=document.getElementById('stGrid');
   if(!stu.length){g.innerHTML=`<div class="empty" style="grid-column:1/-1"><div class="empty-ic"><i class="fa-solid fa-users"></i></div><p>${q?'No match':'No students yet. Add one!'}</p></div>`;return;}
@@ -1480,8 +1524,9 @@ function renderStudents(){
     const overall=avgs.filter(v=>v!=null);const oa=overall.length?Math.round(avg(overall)):null;const gr=oa!=null?grd(oa):{g:'—',c:'var(--t3)'};
     const ac=AV_C[i%AV_C.length];const ini=s.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
     const risk=oa!=null&&oa<50?'risk-hi':oa!=null&&oa<70?'risk-md':'risk-lo';const riskL=oa!=null&&oa<50?'HIGH':oa!=null&&oa<70?'MED':'OK';
-    return`<div class="sc" onclick="openStuDet('${s.id}')">
-      <div class="sc-hd"><div class="sc-av" style="background:${ac}">${ini}</div><div style="flex:1"><div class="sc-nm">${s.name}</div><div class="sc-rl">Roll: ${s.roll}${s.batch?' &middot; '+s.batch:''}</div></div>
+    const mentorBadge=isOwnerAll&&s._mentorName?`<div style="font-size:9px;color:var(--acc2);font-weight:700;letter-spacing:.5px;margin-top:2px"><i class="fa-solid fa-user-tie" style="font-size:8px"></i> ${s._mentorName}</div>`:'';
+    return`<div class="sc" onclick="${isOwnerAll?'':'openStuDet(\''+s.id+'\')'}">
+      <div class="sc-hd"><div class="sc-av" style="background:${ac}">${ini}</div><div style="flex:1"><div class="sc-nm">${s.name}</div><div class="sc-rl">Roll: ${s.roll}${s.batch?' &middot; '+s.batch:''}</div>${mentorBadge}</div>
       <div style="text-align:right"><div style="font-size:20px;font-weight:900;color:${gr.c};font-family:'JetBrains Mono',monospace">${gr.g}</div><div class="risk ${risk}" style="font-size:9px;margin-top:3px">${riskL}</div></div></div>
       <div class="sc-sj">${SUBJ.map((subj,si)=>`<div class="sc-sj-i"><div class="sc-sj-v" style="color:${SUBJ_C[subj]}">${avgs[si]!=null?avgs[si]+'%':'—'}</div><div class="sc-sj-l">${subj}</div></div>`).join('')}</div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px"><span style="font-size:10px;color:var(--t3)">${se.length} exams</span><span style="font-size:12px;color:${gr.c};font-weight:700">${oa!=null?oa+'% avg':'No data'}</span></div>
@@ -1573,17 +1618,20 @@ function renderRecentEntries(){
 }
 function renderExamTable(){
   const el=document.getElementById('examTable');if(!el)return;
+  const isOwnerAll = window._isOwner && window._ownerViewAll;
   const q=(document.getElementById('etSearch')||{}).value||'';const stu=DB.s;
   let exs=DB.e.slice().sort((a,b)=>{if(a.date&&b.date)return new Date(b.date)-new Date(a.date);return new Date(b.createdAt)-new Date(a.createdAt);});
   if(efFilter!=='all')exs=exs.filter(e=>e.type===efFilter);
   if(q)exs=exs.filter(e=>{const s=stu.find(st=>st.id===e.studentId);return s&&(s.name.toLowerCase().includes(q.toLowerCase())||s.roll.toLowerCase().includes(q.toLowerCase()));});
   if(!exs.length){el.innerHTML=`<div class="empty"><p>No records</p></div>`;return;}
-  el.innerHTML=`<table><thead><tr><th>#</th><th>Student</th><th>Roll</th><th>Exam</th><th>Type</th><th>Date</th><th style="color:var(--bio)">BIO</th><th style="color:var(--chm)">CHM</th><th style="color:var(--phy)">PHY</th><th style="color:var(--mth)">MTH</th><th>Total</th><th>%</th><th>Grade</th><th>Actions</th></tr></thead><tbody>
+  const mentorTh=isOwnerAll?'<th style="color:var(--acc2)">Mentor</th>':'';
+  el.innerHTML=`<table><thead><tr><th>#</th><th>Student</th><th>Roll</th><th>Exam</th><th>Type</th><th>Date</th><th style="color:var(--bio)">BIO</th><th style="color:var(--chm)">CHM</th><th style="color:var(--phy)">PHY</th><th style="color:var(--mth)">MTH</th><th>Total</th><th>%</th><th>Grade</th>${mentorTh}<th>Actions</th></tr></thead><tbody>
     ${exs.map((e,i)=>{const s=stu.find(st=>st.id===e.studentId);const total4=getExamTotalScored(e);const max4=getExamTotalMax(e);const p=max4>0?pct(total4,max4):null;const g2=p!=null?grd(p):{g:'—',c:'var(--t3)'};
+      const mentorTd=isOwnerAll?`<td style="font-size:10px;color:var(--acc2);font-weight:600">${e._mentorName||'—'}</td>`:'';
       return`<tr><td style="color:var(--t4)">${i+1}</td><td>${s?s.name:'?'}</td><td style="color:var(--t2)">${s?s.roll:'—'}</td><td style="font-family:'JetBrains Mono',monospace;font-weight:600">${e.examName}</td><td><span class="badge b-${e.type.toLowerCase()}">${e.type}</span></td><td style="color:var(--t2)">${e.date||'—'}</td>
         ${SUBJ.map(subj=>{const t=getSubjTotal(e,subj);return`<td class="tc" style="color:${SUBJ_C[subj]}">${e.marks[subj]!=null?e.marks[subj]+'/'+t:'—'}</td>`;}).join('')}
-        <td class="tc">${max4>0?total4+'/'+max4:'—'}</td><td class="tc" style="color:${g2.c}">${p!=null?p+'%':'—'}</td><td><span style="color:${g2.c};font-weight:800;font-family:'JetBrains Mono',monospace">${g2.g}</span></td>
-        <td style="display:flex;gap:4px"><button class="btn btn-edit btn-xs" onclick="openEditExam('${e.id}')"><i class="fa-solid fa-pen"></i></button><button class="btn btn-d btn-xs" onclick="delExam('${e.id}')"><i class="fa-solid fa-trash"></i></button></td></tr>`;
+        <td class="tc">${max4>0?total4+'/'+max4:'—'}</td><td class="tc" style="color:${g2.c}">${p!=null?p+'%':'—'}</td><td><span style="color:${g2.c};font-weight:800;font-family:'JetBrains Mono',monospace">${g2.g}</span></td>${mentorTd}
+        <td style="display:flex;gap:4px">${isOwnerAll?'<span style="font-size:10px;color:var(--t3)">—</span>':`<button class="btn btn-edit btn-xs" onclick="openEditExam('${e.id}')"><i class="fa-solid fa-pen"></i></button><button class="btn btn-d btn-xs" onclick="delExam('${e.id}')"><i class="fa-solid fa-trash"></i></button>`}</td></tr>`;
     }).join('')}
   </tbody></table>`;
 }
@@ -1670,22 +1718,40 @@ let hmSubj='total';
 function setHMSubj(s,el){hmSubj=s;document.querySelectorAll('#pg-heatmap .tab').forEach(t=>t.classList.remove('active'));if(el)el.classList.add('active');renderHeatmap(s);}
 function renderHeatmap(subj){
   const el=document.getElementById('hmContent');if(!el)return;
-  const stu=DB.s.sort((a,b)=>a.roll.localeCompare(b.roll,undefined,{numeric:true}));const exams=DB.e;
+  const isOwnerAll = window._isOwner && window._ownerViewAll;
+  const stu=DB.s.slice().sort((a,b)=>{
+    // In owner-all mode, sort by mentor first, then roll
+    if(isOwnerAll&&a._mentorName&&b._mentorName&&a._mentorName!==b._mentorName) return a._mentorName.localeCompare(b._mentorName);
+    return a.roll.localeCompare(b.roll,undefined,{numeric:true});
+  });
+  const exams=DB.e;
   if(!stu.length||!exams.length){el.innerHTML=`<div class="empty"><p>No data to display</p></div>`;return;}
   const allExamNames=[...new Set(exams.map(e=>e.examName))].sort((a,b)=>{const ta=a.split(' ')[0],na=parseInt(a.split(' ')[1]||0);const tb=b.split(' ')[0],nb=parseInt(b.split(' ')[1]||0);if(ta!==tb)return ta.localeCompare(tb);return na-nb;});
-  let html=`<table style="border-collapse:separate;border-spacing:3px;min-width:100%"><thead><tr><th style="min-width:130px;text-align:left;font-size:10px;color:var(--t3);padding:4px 8px">Student</th>${allExamNames.map(n=>{const type=n.split(' ')[0];return`<th style="text-align:center;font-size:9px;color:${type==='WE'?'var(--we)':'var(--mt)'};padding:4px 2px;min-width:44px;white-space:nowrap">${n}</th>`;}).join('')}<th style="text-align:center;font-size:9px;color:var(--t2);padding:4px 8px">Avg</th></tr></thead><tbody>`;
-  stu.forEach(s=>{const se=exams.filter(e=>e.studentId===s.id);const rowPcts=allExamNames.map(name=>{const e=se.find(ex=>ex.examName===name);if(!e)return null;if(subj==='total')return getExamOverallPct(e);return getSubjPct(e,subj);});const nonNull=rowPcts.filter(v=>v!=null);const rowAvg=nonNull.length?Math.round(avg(nonNull)):null;
-    html+=`<tr><td style="font-size:11px;font-weight:500;padding:3px 8px;white-space:nowrap">${s.name}</td>${rowPcts.map(p=>`<td style="padding:2px"><div class="hm-cell" style="background:${hmColor(p)};color:${p!=null?(p<60?'rgba(255,255,255,.9)':'rgba(0,0,0,.7)'):'var(--t4)'}">${p!=null?p:'—'}</div></td>`).join('')}<td style="padding:3px 8px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:${rowAvg!=null?grd(rowAvg).c:'var(--t3)'}">${rowAvg!=null?rowAvg+'%':'—'}</td></tr>`;});
+  const mentorTh=isOwnerAll?'<th style="min-width:100px;text-align:left;font-size:10px;color:var(--acc2);padding:4px 6px">Mentor</th>':'';
+  let html=`<table style="border-collapse:separate;border-spacing:3px;min-width:100%"><thead><tr><th style="min-width:130px;text-align:left;font-size:10px;color:var(--t3);padding:4px 8px">Student</th>${mentorTh}${allExamNames.map(n=>{const type=n.split(' ')[0];return`<th style="text-align:center;font-size:9px;color:${type==='WE'?'var(--we)':'var(--mt)'};padding:4px 2px;min-width:44px;white-space:nowrap">${n}</th>`;}).join('')}<th style="text-align:center;font-size:9px;color:var(--t2);padding:4px 8px">Avg</th></tr></thead><tbody>`;
+  let lastMentor='';
+  stu.forEach(s=>{
+    // Insert mentor group separator row in owner-all mode
+    if(isOwnerAll&&s._mentorName&&s._mentorName!==lastMentor){
+      const colSpan=allExamNames.length+3;
+      html+=`<tr><td colspan="${colSpan}" style="background:rgba(167,139,250,.08);border-left:3px solid var(--acc2);padding:5px 10px;font-size:10px;font-weight:800;color:var(--acc2);letter-spacing:.5px;text-transform:uppercase"><i class="fa-solid fa-user-tie" style="font-size:9px"></i> ${s._mentorName}</td></tr>`;
+      lastMentor=s._mentorName;
+    }
+    const se=exams.filter(e=>e.studentId===s.id);const rowPcts=allExamNames.map(name=>{const e=se.find(ex=>ex.examName===name);if(!e)return null;if(subj==='total')return getExamOverallPct(e);return getSubjPct(e,subj);});const nonNull=rowPcts.filter(v=>v!=null);const rowAvg=nonNull.length?Math.round(avg(nonNull)):null;
+    const mentorTd=isOwnerAll?`<td style="padding:3px 6px;font-size:9px;color:var(--t3)">${s._mentorName||'—'}</td>`:'';
+    html+=`<tr><td style="font-size:11px;font-weight:500;padding:3px 8px;white-space:nowrap">${s.name}</td>${mentorTd}${rowPcts.map(p=>`<td style="padding:2px"><div class="hm-cell" style="background:${hmColor(p)};color:${p!=null?(p<60?'rgba(255,255,255,.9)':'rgba(0,0,0,.7)'):'var(--t4)'}">${p!=null?p:'—'}</div></td>`).join('')}<td style="padding:3px 8px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:${rowAvg!=null?grd(rowAvg).c:'var(--t3)'}">${rowAvg!=null?rowAvg+'%':'—'}</td></tr>`;
+  });
   html+='</tbody></table>';el.innerHTML=html;
 }
 
 // RISK MONITOR
 function renderRisk(){
   const stu=DB.s;const exams=DB.e;const el=document.getElementById('riskStats');
+  const isOwnerAll = window._isOwner && window._ownerViewAll;
   const data=stu.map(s=>{const se=exams.filter(e=>e.studentId===s.id);const ps=se.map(e=>getExamOverallPct(e)).filter(v=>v!=null);const last3=ps.slice(-3);const prev3=ps.slice(-6,-3);const trend3=last3.length&&prev3.length?Math.round(avg(last3)-avg(prev3)):null;return{s,ps,avg:ps.length?Math.round(avg(ps)):null,trend3};}).filter(d=>d.avg!==null);
   const high=data.filter(d=>d.avg<50);const med=data.filter(d=>d.avg>=50&&d.avg<70);const decline=data.filter(d=>d.trend3!==null&&d.trend3<-8);const improve=data.filter(d=>d.trend3!==null&&d.trend3>8);
   if(el){el.innerHTML=`<div class="stat acc5"><div class="stat-v">${high.length}</div><div class="stat-l">High Risk</div></div><div class="stat acc4"><div class="stat-v">${med.length}</div><div class="stat-l">Medium Risk</div></div><div class="stat acc"><div class="stat-v">${decline.length}</div><div class="stat-l">Declining</div></div><div class="stat acc3"><div class="stat-v">${improve.length}</div><div class="stat-l">Improving</div></div>`;}
-  function riskList(arr){if(!arr.length)return`<div class="empty"><p>None</p></div>`;return arr.map(d=>{const g2=grd(d.avg);return`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bdr)"><div style="flex:1"><div style="font-size:13px;font-weight:600">${d.s.name}</div><div style="font-size:10px;color:var(--t2)">Roll: ${d.s.roll}${d.s.batch?' &middot; '+d.s.batch:''}</div></div><div style="text-align:right"><div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:800;color:${g2.c}">${d.avg}%</div>${d.trend3!==null?`<div style="font-size:10px;color:${d.trend3>0?'var(--acc3)':'var(--acc5)'}">${d.trend3>0?'↑+':'↓'}${Math.abs(d.trend3)}% recent</div>`:''}</div><button class="btn btn-g btn-xs" onclick="nav('analysis',null);setTimeout(()=>{document.getElementById('aStu').value='${d.s.id}';renderAnalysis()},100)">View</button></div>`;}).join('');}
+  function riskList(arr){if(!arr.length)return`<div class="empty"><p>None</p></div>`;return arr.map(d=>{const g2=grd(d.avg);const mentorTag=isOwnerAll&&d.s._mentorName?`<div style="font-size:9px;color:var(--acc2);font-weight:600;margin-top:2px"><i class="fa-solid fa-user-tie" style="font-size:8px"></i> ${d.s._mentorName}</div>`:'';return`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bdr)"><div style="flex:1"><div style="font-size:13px;font-weight:600">${d.s.name}</div><div style="font-size:10px;color:var(--t2)">Roll: ${d.s.roll}${d.s.batch?' &middot; '+d.s.batch:''}</div>${mentorTag}</div><div style="text-align:right"><div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:800;color:${g2.c}">${d.avg}%</div>${d.trend3!==null?`<div style="font-size:10px;color:${d.trend3>0?'var(--acc3)':'var(--acc5)'}">${d.trend3>0?'↑+':'↓'}${Math.abs(d.trend3)}% recent</div>`:''}</div><button class="btn btn-g btn-xs" onclick="nav('analysis',null);setTimeout(()=>{document.getElementById('aStu').value='${d.s.id}';renderAnalysis()},100)">View</button></div>`;}).join('');}
   document.getElementById('rHigh').innerHTML=riskList(high);document.getElementById('rMed').innerHTML=riskList(med);document.getElementById('rDecline').innerHTML=riskList(decline.length?decline:data.filter(d=>d.trend3!=null&&d.trend3<-5));document.getElementById('rImprove').innerHTML=riskList(improve);
 }
 
@@ -1714,12 +1780,14 @@ function renderProgress(){
 // GRADE GROUPS
 function renderGrades(){
   const el=document.getElementById('gradeContent');if(!el)return;killCharts();
+  const isOwnerAll = window._isOwner && window._ownerViewAll;
   const filterSubj=document.getElementById('gradeFilter').value;const stu=DB.s;const exams=DB.e;
   const grades=[{g:'A+',min:90,max:100,cls:'gA-plus',c:'#a78bfa'},{g:'A',min:80,max:89,cls:'gA',c:'#4ade80'},{g:'B',min:70,max:79,cls:'gB',c:'#22d3ee'},{g:'C',min:60,max:69,cls:'gC',c:'#fbbf24'},{g:'D',min:50,max:59,cls:'gD',c:'#fb923c'},{g:'F',min:0,max:49,cls:'gF',c:'#f87171'}];
   const getStuAvg=(s)=>{const se=exams.filter(e=>e.studentId===s.id);if(!se.length)return null;if(filterSubj==='overall'){const ps=se.map(e=>getExamOverallPct(e)).filter(v=>v!=null);return ps.length?Math.round(avg(ps)):null;}else{const ps=se.filter(e=>e.marks[filterSubj]!=null).map(e=>getSubjPct(e,filterSubj));return ps.length?Math.round(avg(ps)):null;}};
   const stuWithAvgs=stu.map((s,i)=>({...s,pct:getStuAvg(s),idx:i})).filter(x=>x.pct!=null).sort((a,b)=>b.pct-a.pct);const noData=stu.filter(s=>getStuAvg(s)===null);const bandCounts=grades.map(band=>({...band,students:stuWithAvgs.filter(s=>s.pct>=band.min&&s.pct<=band.max)}));
+  const mentorTh=isOwnerAll?'<th style="color:var(--acc2)">Mentor</th>':'';
   let html=`<div class="g2" style="margin-bottom:20px"><div class="card"><div class="card-title">Grade Distribution</div><div style="height:200px"><canvas id="gradePieC"></canvas></div></div><div class="card"><div class="card-title">Summary Statistics</div>${bandCounts.map(b=>`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--bdr)"><span style="font-family:'JetBrains Mono',monospace;font-weight:900;font-size:16px;color:${b.c};width:30px">${b.g}</span><span style="font-size:11px;color:var(--t2);flex:1">${b.min}–${b.max}%</span><div style="flex:2;background:var(--s4);border-radius:3px;height:6px;overflow:hidden"><div style="width:${stuWithAvgs.length?b.students.length/stuWithAvgs.length*100:0}%;height:100%;background:${b.c};border-radius:3px"></div></div><span style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;width:30px;text-align:right">${b.students.length}</span></div>`).join('')}</div></div>`;
-  bandCounts.forEach(band=>{if(!band.students.length)return;html+=`<div class="grade-band"><div class="grade-band-hdr ${band.cls}"><span style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:900;color:${band.c}">${band.g}</span><span style="font-size:13px;color:var(--t2)">${band.min}–${band.max}%</span><span class="grade-band-count">${band.students.length} student${band.students.length!==1?'s':''}</span></div><div class="tw"><table><thead><tr><th>Roll</th><th>Name</th><th>Batch</th><th style="color:var(--bio)">BIO</th><th style="color:var(--chm)">CHM</th><th style="color:var(--phy)">PHY</th><th style="color:var(--mth)">MTH</th><th>Avg %</th><th></th></tr></thead><tbody>${band.students.map(s=>{const se=exams.filter(e=>e.studentId===s.id);const subjAvgs=SUBJ.map(subj=>{const v=se.filter(e=>e.marks[subj]!=null).map(e=>getSubjPct(e,subj));return v.length?Math.round(avg(v)):null;});return`<tr><td style="color:var(--t2)">${s.roll}</td><td style="font-weight:600">${s.name}</td><td style="color:var(--t3)">${s.batch||'—'}</td>${subjAvgs.map((v,i)=>`<td class="tc ${v!=null?scoreClass(v):''}">${v!=null?v+'%':'—'}</td>`).join('')}<td class="tc" style="color:${band.c};font-weight:800">${s.pct}%</td><td><button class="btn btn-g btn-xs" onclick="nav('analysis',null);setTimeout(()=>{document.getElementById('aStu').value='${s.id}';renderAnalysis()},100)">View</button></td></tr>`;}).join('')}</tbody></table></div></div>`;});
+  bandCounts.forEach(band=>{if(!band.students.length)return;html+=`<div class="grade-band"><div class="grade-band-hdr ${band.cls}"><span style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:900;color:${band.c}">${band.g}</span><span style="font-size:13px;color:var(--t2)">${band.min}–${band.max}%</span><span class="grade-band-count">${band.students.length} student${band.students.length!==1?'s':''}</span></div><div class="tw"><table><thead><tr><th>Roll</th><th>Name</th><th>Batch</th><th style="color:var(--bio)">BIO</th><th style="color:var(--chm)">CHM</th><th style="color:var(--phy)">PHY</th><th style="color:var(--mth)">MTH</th><th>Avg %</th>${mentorTh}<th></th></tr></thead><tbody>${band.students.map(s=>{const se=exams.filter(e=>e.studentId===s.id);const subjAvgs=SUBJ.map(subj=>{const v=se.filter(e=>e.marks[subj]!=null).map(e=>getSubjPct(e,subj));return v.length?Math.round(avg(v)):null;});const mentorTd=isOwnerAll?`<td style="font-size:10px;color:var(--acc2);font-weight:600">${s._mentorName||'—'}</td>`:'';return`<tr><td style="color:var(--t2)">${s.roll}</td><td style="font-weight:600">${s.name}</td><td style="color:var(--t3)">${s.batch||'—'}</td>${subjAvgs.map((v,i)=>`<td class="tc ${v!=null?scoreClass(v):''}">${v!=null?v+'%':'—'}</td>`).join('')}<td class="tc" style="color:${band.c};font-weight:800">${s.pct}%</td>${mentorTd}<td><button class="btn btn-g btn-xs" onclick="nav('analysis',null);setTimeout(()=>{document.getElementById('aStu').value='${s.id}';renderAnalysis()},100)">View</button></td></tr>`;}).join('')}</tbody></table></div></div>`;});
   if(noData.length)html+=`<div class="card" style="margin-top:8px"><div class="card-title">No Data Yet</div><div style="display:flex;flex-wrap:wrap;gap:8px;padding-top:4px">${noData.map(s=>`<span class="chip">${s.roll} – ${s.name}</span>`).join('')}</div></div>`;
   el.innerHTML=html;
   setTimeout(()=>{const pc=document.getElementById('gradePieC');if(pc&&bandCounts.some(b=>b.students.length)){const co=chartOpts();_charts.push(new Chart(pc,{type:'doughnut',data:{labels:bandCounts.map(b=>b.g+'('+b.students.length+')'),datasets:[{data:bandCounts.map(b=>b.students.length),backgroundColor:bandCounts.map(b=>b.c+'bb'),borderColor:bandCounts.map(b=>b.c),borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:co.legend,font:{size:10}}},tooltip:{backgroundColor:co.tooltipBg,titleColor:co.tooltipTitle,bodyColor:co.tooltipBody}}}}));}},80);
@@ -1728,144 +1796,44 @@ function renderGrades(){
 // AI INSIGHTS
 function renderInsights(){
   const el=document.getElementById('insContent');if(!el)return;const stu=DB.s;const exams=DB.e;
+  const isOwnerAll = window._isOwner && window._ownerViewAll;
   if(!stu.length||!exams.length){el.innerHTML=`<div class="empty"><p>Add students and exam data to see insights</p></div>`;return;}
   const insights=[];const stuData=stu.map(s=>{const se=exams.filter(e=>e.studentId===s.id);const ps=se.map(e=>getExamOverallPct(e)).filter(v=>v!=null);const allPcts=ps;const recent3=allPcts.slice(-3);const earlier=allPcts.slice(0,-3);const recentAvg=recent3.length?avg(recent3):null;const earlierAvg=earlier.length?avg(earlier):null;return{s,se,ps,avg:ps.length?Math.round(avg(ps)):null,recentAvg:recentAvg?Math.round(recentAvg):null,earlierAvg:earlierAvg?Math.round(earlierAvg):null,improvement:recentAvg&&earlierAvg?Math.round(recentAvg-earlierAvg):null};}).filter(d=>d.avg!=null);
-  const batchAvg=Math.round(avg(stuData.map(d=>d.avg)));insights.push({icon:'fa-users',color:'var(--acc)',title:`Batch avg is ${batchAvg}% — Grade ${grd(batchAvg).g}`,desc:`${stuData.length} students have exam data. ${stuData.filter(d=>d.avg>=70).length} are at B or above.`});
-  const improved=stuData.filter(d=>d.improvement!=null&&d.improvement>5).sort((a,b)=>b.improvement-a.improvement);if(improved.length)insights.push({icon:'fa-arrow-trend-up',color:'var(--acc3)',title:`Most Improved: ${improved[0].s.name}`,desc:`Up ${improved[0].improvement}% in last 3 exams (${improved[0].recentAvg}% recent vs ${improved[0].earlierAvg}% earlier).`});
-  const declined=stuData.filter(d=>d.improvement!=null&&d.improvement<-5).sort((a,b)=>a.improvement-b.improvement);if(declined.length)insights.push({icon:'fa-arrow-trend-down',color:'var(--acc5)',title:`Needs Attention: ${declined[0].s.name}`,desc:`Down ${Math.abs(declined[0].improvement)}% in last 3 exams. Mentor check-in recommended.`});
+  const batchAvg=Math.round(avg(stuData.map(d=>d.avg)));
+  const scopeLabel = isOwnerAll ? 'Institute-wide avg' : 'Batch avg';
+  insights.push({icon:'fa-users',color:'var(--acc)',title:`${scopeLabel} is ${batchAvg}% — Grade ${grd(batchAvg).g}`,desc:`${stuData.length} students have exam data. ${stuData.filter(d=>d.avg>=70).length} are at B or above.`});
+  const improved=stuData.filter(d=>d.improvement!=null&&d.improvement>5).sort((a,b)=>b.improvement-a.improvement);if(improved.length)insights.push({icon:'fa-arrow-trend-up',color:'var(--acc3)',title:`Most Improved: ${improved[0].s.name}${isOwnerAll&&improved[0].s._mentorName?' ('+improved[0].s._mentorName+')':''}`,desc:`Up ${improved[0].improvement}% in last 3 exams (${improved[0].recentAvg}% recent vs ${improved[0].earlierAvg}% earlier).`});
+  const declined=stuData.filter(d=>d.improvement!=null&&d.improvement<-5).sort((a,b)=>a.improvement-b.improvement);if(declined.length)insights.push({icon:'fa-arrow-trend-down',color:'var(--acc5)',title:`Needs Attention: ${declined[0].s.name}${isOwnerAll&&declined[0].s._mentorName?' ('+declined[0].s._mentorName+')':''}`,desc:`Down ${Math.abs(declined[0].improvement)}% in last 3 exams. Mentor check-in recommended.`});
   const subjBatchAvgs=SUBJ.map(subj=>{const v=exams.filter(e=>e.marks[subj]!=null).map(e=>getSubjPct(e,subj));return{subj,avg:v.length?Math.round(avg(v)):null};}).filter(x=>x.avg!=null).sort((a,b)=>a.avg-b.avg);if(subjBatchAvgs.length)insights.push({icon:'fa-book-open',color:'var(--phy)',title:`Weakest Subject: ${SUBJ_N[subjBatchAvgs[0].subj]} (${subjBatchAvgs[0].avg}%)`,desc:`Strongest: ${SUBJ_N[subjBatchAvgs[subjBatchAvgs.length-1].subj]} (${subjBatchAvgs[subjBatchAvgs.length-1].avg}%). Consider more ${SUBJ_N[subjBatchAvgs[0].subj]} practice sessions.`});
-  const top=stuData.sort((a,b)=>b.avg-a.avg)[0];if(top)insights.push({icon:'fa-trophy',color:'var(--mt)',title:`Top Performer: ${top.s.name}`,desc:`Averaging ${top.avg}% overall (Grade ${grd(top.avg).g}). ${top.se.length} exams taken.`});
+  const top=stuData.slice().sort((a,b)=>b.avg-a.avg)[0];if(top)insights.push({icon:'fa-trophy',color:'var(--mt)',title:`Top Performer: ${top.s.name}${isOwnerAll&&top.s._mentorName?' ('+top.s._mentorName+')':''}`,desc:`Averaging ${top.avg}% overall (Grade ${grd(top.avg).g}). ${top.se.length} exams taken.`});
   const noExam=stu.filter(s=>!exams.find(e=>e.studentId===s.id));if(noExam.length)insights.push({icon:'fa-circle-exclamation',color:'var(--mt)',title:`${noExam.length} student${noExam.length!==1?'s have':' has'} no exam data`,desc:noExam.map(s=>s.name).join(', ')+'. Add their exam records.'});
-  const mtAvgs=exams.filter(e=>e.type==='MT').map(e=>getExamOverallPct(e)).filter(v=>v!=null);const weAvgs=exams.filter(e=>e.type==='WE').map(e=>getExamOverallPct(e)).filter(v=>v!=null);if(mtAvgs.length&&weAvgs.length){const gap=Math.round(avg(mtAvgs)-avg(weAvgs));insights.push({icon:'fa-scale-balanced',color:'var(--acc2)',title:`MT vs WE Gap: ${Math.abs(gap)}%`,desc:`Batch averages ${Math.round(avg(mtAvgs))}% on MT and ${Math.round(avg(weAvgs))}% on WE. ${gap>0?'Students perform better in MT — WE difficulty may be higher.':'Students perform better in WE — MTs may need adjustment.'}`});}
-  el.innerHTML=`<div class="g2" style="margin-bottom:20px"><div class="card"><div class="card-title">Batch Overview</div><div style="height:200px"><canvas id="insBatchC"></canvas></div></div><div class="card"><div class="card-title">Subject Comparison (Batch)</div><div style="height:200px"><canvas id="insSubjC"></canvas></div></div></div>
-  <div class="card"><div class="card-title">Smart Observations</div>${insights.map(ins=>`<div class="insight-row"><div class="insight-icon" style="background:${ins.color}22;color:${ins.color}"><i class="fa-solid ${ins.icon}"></i></div><div class="insight-body"><div class="insight-title">${ins.title}</div><div class="insight-desc">${ins.desc}</div></div></div>`).join('')}</div>`;
+  const mtAvgs=exams.filter(e=>e.type==='MT').map(e=>getExamOverallPct(e)).filter(v=>v!=null);const weAvgs=exams.filter(e=>e.type==='WE').map(e=>getExamOverallPct(e)).filter(v=>v!=null);if(mtAvgs.length&&weAvgs.length){const gap=Math.round(avg(mtAvgs)-avg(weAvgs));insights.push({icon:'fa-scale-balanced',color:'var(--acc2)',title:`MT vs WE Gap: ${Math.abs(gap)}%`,desc:`Averages ${Math.round(avg(mtAvgs))}% on MT and ${Math.round(avg(weAvgs))}% on WE. ${gap>0?'Students perform better in MT — WE difficulty may be higher.':'Students perform better in WE — MTs may need adjustment.'}`});}
+
+  // Build mentor comparison table for owner-all mode
+  let mentorBreakdownHtml = '';
+  if(isOwnerAll && window._FB && window._FB.MENTOR_NAMES){
+    const mentorRows = Object.entries(window._FB.MENTOR_NAMES).map(([uid,name])=>{
+      const mStu=stu.filter(s=>s._mentorUid===uid);const mExm=exams.filter(e=>e._mentorUid===uid);
+      const ps=mExm.map(e=>getExamOverallPct(e)).filter(v=>v!=null);const mAvg=ps.length?Math.round(avg(ps)):null;const g2=mAvg!=null?grd(mAvg):{g:'—',c:'var(--t3)'};
+      const highRisk=mStu.filter(s=>{const se=mExm.filter(e=>e.studentId===s.id);const sp=se.map(e=>getExamOverallPct(e)).filter(v=>v!=null);return sp.length&&avg(sp)<50;}).length;
+      return`<tr><td style="font-weight:600;color:var(--acc2)">${name}</td><td class="tc">${mStu.length}</td><td class="tc">${mExm.length}</td><td class="tc" style="color:${g2.c};font-weight:700">${mAvg!=null?mAvg+'%':'—'}</td><td class="tc"><span style="font-weight:800;font-family:'JetBrains Mono',monospace;color:${g2.c}">${g2.g}</span></td><td class="tc" style="color:${highRisk>0?'var(--acc5)':'var(--acc3)'}">${highRisk}</td><td><button class="btn btn-g btn-xs" onclick="window._switchMentor('${uid}')">View →</button></td></tr>`;
+    }).join('');
+    mentorBreakdownHtml=`<div class="card" style="margin-top:16px"><div class="card-title"><i class="fa-solid fa-crown" style="color:var(--acc2)"></i> Mentor-wise Breakdown</div><div class="tw"><table><thead><tr><th>Mentor</th><th>Students</th><th>Records</th><th>Avg %</th><th>Grade</th><th style="color:var(--acc5)">High Risk</th><th></th></tr></thead><tbody>${mentorRows}</tbody></table></div></div>`;
+  }
+
+  el.innerHTML=`<div class="g2" style="margin-bottom:20px"><div class="card"><div class="card-title">${isOwnerAll?'Institute':'Batch'} Overview</div><div style="height:200px"><canvas id="insBatchC"></canvas></div></div><div class="card"><div class="card-title">Subject Comparison ${isOwnerAll?'(Institute)':'(Batch)'}</div><div style="height:200px"><canvas id="insSubjC"></canvas></div></div></div>
+  <div class="card"><div class="card-title">Smart Observations</div>${insights.map(ins=>`<div class="insight-row"><div class="insight-icon" style="background:${ins.color}22;color:${ins.color}"><i class="fa-solid ${ins.icon}"></i></div><div class="insight-body"><div class="insight-title">${ins.title}</div><div class="insight-desc">${ins.desc}</div></div></div>`).join('')}</div>${mentorBreakdownHtml}`;
   setTimeout(()=>{const co=chartOpts();const bc=document.getElementById('insBatchC');const grs=[{g:'A+',min:90,c:'#a78bfa'},{g:'A',min:80,c:'#4ade80'},{g:'B',min:70,c:'#22d3ee'},{g:'C',min:60,c:'#fbbf24'},{g:'D',min:50,c:'#fb923c'},{g:'F',min:0,c:'#f87171'}];if(bc){const counts=grs.map(gr=>stuData.filter(d=>d.avg>=gr.min&&(grs.indexOf(gr)===0||d.avg<grs[grs.indexOf(gr)-1].min)).length);_charts.push(new Chart(bc,{type:'bar',data:{labels:grs.map(g=>g.g),datasets:[{data:counts,backgroundColor:grs.map(g=>g.c+'88'),borderColor:grs.map(g=>g.c),borderWidth:2,borderRadius:4}]},options:{...co,plugins:{...co.plugins,legend:{display:false}}}}));}const sc=document.getElementById('insSubjC');if(sc){const sa=SUBJ.map(subj=>{const v=exams.filter(e=>e.marks[subj]!=null).map(e=>getSubjPct(e,subj));return v.length?Math.round(avg(v)):0;});_charts.push(new Chart(sc,{type:'bar',data:{labels:SUBJ.map(s=>SUBJ_N[s]),datasets:[{data:sa,backgroundColor:SUBJ.map(s=>SUBJ_C[s]+'88'),borderColor:SUBJ.map(s=>SUBJ_C[s]),borderWidth:2,borderRadius:4}]},options:{...co,plugins:{...co.plugins,legend:{display:false}}}}));}},80);
 }
 
 // ══════════════════════════════════════════════════
 //  OWNER OVERVIEW — see all mentors' data
 // ══════════════════════════════════════════════════
-window._ownerAllData = null; // cache
-let _ownerExamSearchQ='';
-let _ownerStuSearchQ='';
-
-function ownerTabSwitch(tab, el){
-  ['mentors','students','exams'].forEach(t=>{
-    document.getElementById('ownerTab-'+t).classList.remove('active');
-    document.getElementById(t==='mentors'?'ownerContent':('ownerAll'+(t==='students'?'Students':'Exams')+'Content')).style.display='none';
-  });
-  if(el)el.classList.add('active');
-  if(tab==='mentors'){document.getElementById('ownerContent').style.display='';}
-  else if(tab==='students'){document.getElementById('ownerAllStudentsContent').style.display='';renderOwnerAllStudents();}
-  else{document.getElementById('ownerAllExamsContent').style.display='';renderOwnerAllExams();}
-}
-
-function renderOwnerAllStudents(){
-  const el=document.getElementById('ownerAllStudentsContent');if(!el)return;
-  const allData=window._ownerAllData;
-  if(!allData){el.innerHTML=`<div class="empty"><p>Data not loaded yet. Click Refresh.</p></div>`;return;}
-  const q=(_ownerStuSearchQ||'').toLowerCase();
-  // Build flat list of all students with their mentor name and performance
-  const rows=[];
-  Object.entries(allData).forEach(([uid,data])=>{
-    data.students.forEach(s=>{
-      const exams=data.exams.filter(e=>e.studentId===s.id);
-      const allPcts=exams.map(e=>getExamOverallPct(e)).filter(v=>v!=null);
-      const oAvg=allPcts.length?Math.round(avg(allPcts)):null;
-      const subjAvgs=SUBJ.map(subj=>{const v=exams.filter(e=>e.marks[subj]!=null).map(e=>getSubjPct(e,subj));return v.length?Math.round(avg(v)):null;});
-      rows.push({s,mentorName:data.name,mentorUid:uid,exams,oAvg,subjAvgs,ecnt:exams.length});
-    });
-  });
-  const filtered=q?rows.filter(r=>r.s.name.toLowerCase().includes(q)||r.s.roll.toLowerCase().includes(q)||r.mentorName.toLowerCase().includes(q)||(r.s.batch||'').toLowerCase().includes(q)):rows;
-  filtered.sort((a,b)=>{
-    if(a.oAvg===null&&b.oAvg===null)return 0;
-    if(a.oAvg===null)return 1;if(b.oAvg===null)return -1;
-    return b.oAvg-a.oAvg;
-  });
-  el.innerHTML=`<div class="ph" style="margin-bottom:12px">
-    <div><h2 style="font-size:16px;font-weight:800">${filtered.length} Student${filtered.length!==1?'s':''} (All Mentors)</h2></div>
-    <div class="sw" style="width:280px"><span class="sw-ic"><i class="fa-solid fa-magnifying-glass"></i></span>
-      <input type="text" placeholder="Search name, roll, mentor, batch…" id="ownerStuSearch" value="${_ownerStuSearchQ}" oninput="_ownerStuSearchQ=this.value;renderOwnerAllStudents()">
-    </div>
-  </div>
-  ${filtered.length===0?`<div class="empty"><p>No students found</p></div>`:
-  `<div class="tw"><table><thead><tr>
-    <th>#</th><th>Student</th><th>Roll</th><th>Batch</th><th>Mentor</th><th>Exams</th>
-    <th style="color:var(--bio)">BIO</th><th style="color:var(--chm)">CHM</th><th style="color:var(--phy)">PHY</th><th style="color:var(--mth)">MTH</th>
-    <th>Avg %</th><th>Grade</th>
-  </tr></thead><tbody>
-  ${filtered.map((r,i)=>{
-    const g2=r.oAvg!=null?grd(r.oAvg):{g:'—',c:'var(--t3)'};
-    return`<tr>
-      <td style="color:var(--t4)">${i+1}</td>
-      <td style="font-weight:600">${r.s.name}</td>
-      <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${r.s.roll}</td>
-      <td style="color:var(--t3)">${r.s.batch||'—'}</td>
-      <td><span style="background:rgba(167,139,250,.12);color:var(--acc2);border:1px solid rgba(167,139,250,.25);border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700">${r.mentorName}</span></td>
-      <td class="tc">${r.ecnt}</td>
-      ${r.subjAvgs.map((v,si)=>`<td class="tc" style="color:${SUBJ_C[SUBJ[si]]}">${v!=null?v+'%':'—'}</td>`).join('')}
-      <td class="tc" style="color:${g2.c};font-weight:700">${r.oAvg!=null?r.oAvg+'%':'—'}</td>
-      <td><span style="color:${g2.c};font-weight:900;font-family:'JetBrains Mono',monospace">${g2.g}</span></td>
-    </tr>`;
-  }).join('')}
-  </tbody></table></div>`}`;
-}
-
-function renderOwnerAllExams(){
-  const el=document.getElementById('ownerAllExamsContent');if(!el)return;
-  const allData=window._ownerAllData;
-  if(!allData){el.innerHTML=`<div class="empty"><p>Data not loaded yet. Click Refresh.</p></div>`;return;}
-  const q=(_ownerExamSearchQ||'').toLowerCase();
-  // Build flat exam rows
-  const rows=[];
-  Object.entries(allData).forEach(([uid,data])=>{
-    data.exams.forEach(e=>{
-      const s=data.students.find(st=>st.id===e.studentId);
-      rows.push({e,s,mentorName:data.name,mentorUid:uid});
-    });
-  });
-  const filtered=q?rows.filter(r=>(r.s&&(r.s.name.toLowerCase().includes(q)||r.s.roll.toLowerCase().includes(q)))||r.mentorName.toLowerCase().includes(q)||(r.e.examName||'').toLowerCase().includes(q)):rows;
-  filtered.sort((a,b)=>{if(a.e.date&&b.e.date)return new Date(b.e.date)-new Date(a.e.date);return new Date(b.e.createdAt||0)-new Date(a.e.createdAt||0);});
-  el.innerHTML=`<div class="ph" style="margin-bottom:12px">
-    <div><h2 style="font-size:16px;font-weight:800">${filtered.length} Exam Record${filtered.length!==1?'s':''} (All Mentors)</h2></div>
-    <div class="sw" style="width:300px"><span class="sw-ic"><i class="fa-solid fa-magnifying-glass"></i></span>
-      <input type="text" placeholder="Search student, mentor, exam…" id="ownerExamSearch" value="${_ownerExamSearchQ}" oninput="_ownerExamSearchQ=this.value;renderOwnerAllExams()">
-    </div>
-  </div>
-  ${filtered.length===0?`<div class="empty"><p>No exam records found</p></div>`:
-  `<div class="tw"><table><thead><tr>
-    <th>#</th><th>Student</th><th>Roll</th><th>Mentor</th><th>Exam</th><th>Type</th><th>Date</th>
-    <th style="color:var(--bio)">BIO</th><th style="color:var(--chm)">CHM</th><th style="color:var(--phy)">PHY</th><th style="color:var(--mth)">MTH</th>
-    <th>Total</th><th>%</th><th>Grade</th>
-  </tr></thead><tbody>
-  ${filtered.map((r,i)=>{
-    const {e,s,mentorName}=r;
-    const sc=getExamTotalScored(e);const mx=getExamTotalMax(e);const p=mx>0?pct(sc,mx):null;const g2=p!=null?grd(p):{g:'—',c:'var(--t3)'};
-    return`<tr>
-      <td style="color:var(--t4)">${i+1}</td>
-      <td style="font-weight:600">${s?s.name:'?'}</td>
-      <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${s?s.roll:'?'}</td>
-      <td><span style="background:rgba(167,139,250,.12);color:var(--acc2);border:1px solid rgba(167,139,250,.25);border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700">${mentorName}</span></td>
-      <td style="font-family:'JetBrains Mono',monospace;font-weight:600">${e.examName}</td>
-      <td><span class="badge b-${e.type.toLowerCase()}">${e.type}</span></td>
-      <td style="font-size:11px;color:var(--t2)">${e.date||'—'}</td>
-      ${SUBJ.map(subj=>{const t=getSubjTotal(e,subj);return`<td class="tc" style="color:${SUBJ_C[subj]}">${e.marks[subj]!=null?e.marks[subj]+'/'+t:'—'}</td>`;}).join('')}
-      <td class="tc">${mx>0?sc+'/'+mx:'—'}</td>
-      <td class="tc" style="color:${g2.c};font-weight:700">${p!=null?p+'%':'—'}</td>
-      <td><span style="color:${g2.c};font-weight:900;font-family:'JetBrains Mono',monospace">${g2.g}</span></td>
-    </tr>`;
-  }).join('')}
-  </tbody></table></div>`}`;
-}
-
 async function loadOwnerOverview(){
   const el=document.getElementById('ownerContent');if(!el)return;
   el.innerHTML=`<div style="text-align:center;padding:40px;color:var(--t2)"><div class="load-spinner" style="margin:0 auto 12px"></div><p>Loading all mentor data…</p></div>`;
-  // Reset tab to mentors
-  ownerTabSwitch('mentors',document.getElementById('ownerTab-mentors'));
   try{
     const allData=await window._loadAllMentors();
-    window._ownerAllData=allData;
     let totalStudents=0,totalExams=0;
     let html=`<div class="stat-row" id="ownerStats"></div><div class="sg" id="ownerMentorGrid"></div><div id="ownerDetails"></div>`;
     el.innerHTML=html;
@@ -1886,7 +1854,7 @@ async function loadOwnerOverview(){
         <div style="margin-top:10px;font-size:10px;color:var(--acc);font-weight:600">Click to view this mentor's data →</div>
       </div>`;
     });
-    document.getElementById('ownerStats').innerHTML=`<div class="stat acc"><div class="stat-v">${Object.keys(allData).length}</div><div class="stat-l">Mentors</div></div><div class="stat acc2" style="cursor:pointer" onclick="ownerTabSwitch('students',document.getElementById('ownerTab-students'))"><div class="stat-v">${totalStudents}</div><div class="stat-l">Total Students</div><div class="stat-sub" style="color:var(--acc)">View All →</div></div><div class="stat acc3" style="cursor:pointer" onclick="ownerTabSwitch('exams',document.getElementById('ownerTab-exams'))"><div class="stat-v">${totalExams}</div><div class="stat-l">Total Records</div><div class="stat-sub" style="color:var(--acc)">View All →</div></div>`;
+    document.getElementById('ownerStats').innerHTML=`<div class="stat acc"><div class="stat-v">${Object.keys(allData).length}</div><div class="stat-l">Mentors</div></div><div class="stat acc2"><div class="stat-v">${totalStudents}</div><div class="stat-l">Total Students</div></div><div class="stat acc3"><div class="stat-v">${totalExams}</div><div class="stat-l">Total Records</div></div>`;
     document.getElementById('ownerMentorGrid').innerHTML=mentorCards.join('');
   }catch(e){el.innerHTML=`<div class="empty"><p style="color:var(--acc5)">Error loading data: ${e.message}</p></div>`;}
 }
@@ -1894,7 +1862,10 @@ async function loadOwnerOverview(){
 // DASHBOARD
 function renderDashboard(){
   killCharts();const stu=DB.s;const exams=DB.e;
-  const ecounts=getExamCounts(exams);document.getElementById('dashSub').textContent=`${stu.length} students · ${exams.length} records · MT ${ecounts.mt} · WE ${ecounts.we}`;
+  const isOwnerAll = window._isOwner && window._ownerViewAll;
+  const dashTitle = document.querySelector('#pg-dashboard .ph h1');
+  if (dashTitle) dashTitle.textContent = isOwnerAll ? 'All Mentors Dashboard' : 'Mentor Dashboard';
+  const ecounts=getExamCounts(exams);document.getElementById('dashSub').textContent=`${stu.length} students · ${exams.length} records · MT ${ecounts.mt} · WE ${ecounts.we}`+(isOwnerAll?' · All Mentors':'');
   const allPcts=exams.map(e=>getExamOverallPct(e)).filter(v=>v!=null);const batchAvg=allPcts.length?Math.round(avg(allPcts)):0;
   document.getElementById('dashStats').innerHTML=`<div class="stat acc"><div class="stat-v">${stu.length}</div><div class="stat-l">Students</div></div><div class="stat acc4"><div class="stat-v">${ecounts.mt}</div><div class="stat-l">Module Tests</div></div><div class="stat acc5"><div class="stat-v">${ecounts.we}</div><div class="stat-l">Weekly Exams</div></div><div class="stat acc3"><div class="stat-v" style="color:${grd(batchAvg).c}">${batchAvg}%</div><div class="stat-l">Batch Average</div><div class="stat-sub">Grade ${grd(batchAvg).g}</div></div><div class="stat acc2"><div class="stat-v" style="color:var(--acc5)">${stu.map(s=>{const se=exams.filter(e=>e.studentId===s.id);const p=se.map(e=>getExamOverallPct(e)).filter(v=>v!=null);return p.length&&avg(p)<50?1:0;}).reduce((a,b)=>a+b,0)}</div><div class="stat-l">High Risk</div></div><div class="stat bio"><div class="stat-v">${stu.map(s=>{const se=exams.filter(e=>e.studentId===s.id);const p=se.map(e=>getExamOverallPct(e)).filter(v=>v!=null);return p.length&&avg(p)>=70?1:0;}).reduce((a,b)=>a+b,0)}</div><div class="stat-l">Grade B+</div></div>`;
   const lbEl=document.getElementById('dashLB');const scores=stu.map(s=>{const se=exams.filter(e=>e.studentId===s.id);const p=se.map(e=>getExamOverallPct(e)).filter(v=>v!=null);return{...s,avg:p.length?Math.round(avg(p)):null};}).filter(s=>s.avg!=null).sort((a,b)=>b.avg-a.avg).slice(0,5);
@@ -1915,10 +1886,22 @@ function getRadarOpts(){const co=chartOpts();return{responsive:true,maintainAspe
 
 // SELECTS
 function popSelects(withAll=false){
-  const stu=DB.s.sort((a,b)=>a.roll.localeCompare(b.roll,undefined,{numeric:true}));
-  const opts=(withAll?'<option value="">All Students (Batch View)</option>':'<option value="">— Select —</option>')+stu.map(s=>`<option value="${s.id}">${s.roll} – ${s.name}</option>`).join('');
+  const isOwnerAll = window._isOwner && window._ownerViewAll;
+  const stu=DB.s.slice().sort((a,b)=>a.roll.localeCompare(b.roll,undefined,{numeric:true}));
+  let opts='';
+  if(isOwnerAll && window._FB && window._FB.MENTOR_NAMES){
+    // Group by mentor
+    opts = (withAll?'<option value="">All Students (Institute-Wide)</option>':'<option value="">— Select —</option>');
+    Object.entries(window._FB.MENTOR_NAMES).forEach(([uid,mname])=>{
+      const mStu=stu.filter(s=>s._mentorUid===uid);
+      if(!mStu.length)return;
+      opts+=`<optgroup label="— ${mname} —">${mStu.map(s=>`<option value="${s.id}">${s.roll} – ${s.name}</option>`).join('')}</optgroup>`;
+    });
+  } else {
+    opts=(withAll?'<option value="">All Students (Batch View)</option>':'<option value="">— Select —</option>')+stu.map(s=>`<option value="${s.id}">${s.roll} – ${s.name}</option>`).join('');
+  }
   ['eStudent','aStu','tStu'].forEach(id=>{const el=document.getElementById(id);if(el){const v=el.value;el.innerHTML=opts;el.value=v;}});
-  const pr=document.getElementById('prStu');if(pr){const v=pr.value;pr.innerHTML='<option value="">All Students (Batch View)</option>'+stu.map(s=>`<option value="${s.id}">${s.roll} – ${s.name}</option>`).join('');pr.value=v;}
+  const pr=document.getElementById('prStu');if(pr){const v=pr.value;pr.innerHTML=(isOwnerAll?'<option value="">All Students (Institute-Wide)</option>':'<option value="">All Students (Batch View)</option>')+stu.map(s=>`<option value="${s.id}">${s.roll} – ${s.name}${isOwnerAll&&s._mentorName?' ('+s._mentorName+')':''}</option>`).join('');pr.value=v;}
 }
 
 // EXPORT
