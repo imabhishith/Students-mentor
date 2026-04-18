@@ -580,7 +580,7 @@ tr:last-child td{border-bottom:none}
 .pct-bar-fill{height:100%;border-radius:3px}
 .pct-bar-val{width:38px;text-align:right;font-size:11px;font-family:'JetBrains Mono',monospace;font-weight:600;flex-shrink:0}
 .note-box{background:var(--s2);border:1px solid var(--bdr);border-left:3px solid var(--acc2);border-radius:var(--r);padding:12px 14px;font-size:12px;color:var(--t2);line-height:1.7}
-.score-a{color:#4ade80}.score-b{color:#22d3ee}.score-c{color:#fbbf24}.score-d{color:#fb923c}.score-f{color:#f87171}
+.score-a{color:#4ade80}.score-b{color:#22d3ee}.score-b2{color:#60a5fa}.score-c{color:#fbbf24}.score-d{color:#fb923c}.score-f{color:#f87171}
 .bulk-textarea{background:var(--s2);border:1px solid var(--bdr);border-radius:var(--r);padding:10px 12px;color:var(--t1);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;transition:border-color .2s;width:100%;resize:vertical;min-height:160px;line-height:1.7}
 .bulk-textarea:focus{border-color:rgba(167,139,250,.4)}
 .bulk-textarea::placeholder{color:var(--t4);font-family:'Outfit',sans-serif;font-size:12px}
@@ -592,7 +592,8 @@ tr:last-child td{border-bottom:none}
 .grade-band-hdr{display:flex;align-items:center;gap:10px;margin-bottom:10px;padding:8px 14px;border-radius:var(--r);border-left:3px solid}
 .grade-band-hdr.gA-plus{background:rgba(167,139,250,.08);border-left-color:#a78bfa}
 .grade-band-hdr.gA{background:rgba(74,222,128,.08);border-left-color:#4ade80}
-.grade-band-hdr.gB{background:rgba(34,211,238,.08);border-left-color:#22d3ee}
+.grade-band-hdr.gB-plus{background:rgba(34,211,238,.08);border-left-color:#22d3ee}
+.grade-band-hdr.gB{background:rgba(96,165,250,.08);border-left-color:#60a5fa}
 .grade-band-hdr.gC{background:rgba(251,191,36,.08);border-left-color:#fbbf24}
 .grade-band-hdr.gD{background:rgba(251,146,60,.08);border-left-color:#fb923c}
 .grade-band-hdr.gF{background:rgba(248,113,113,.08);border-left-color:#f87171}
@@ -664,6 +665,16 @@ tr:last-child td{border-bottom:none}
 
   <div class="sb-footer">
     <div class="sb-footer-info" id="sbInfo">Loading…</div>
+    <div style="padding:8px 10px;font-size:10px;line-height:1.9;color:var(--t3);border-top:1px solid var(--bdr);margin-top:4px">
+      <div style="font-weight:700;color:var(--t2);letter-spacing:.5px;margin-bottom:4px">GRADE SCALE</div>
+      <div><span style="color:#a78bfa;font-weight:700;font-family:'JetBrains Mono',monospace">A+</span> 90–100%</div>
+      <div><span style="color:#4ade80;font-weight:700;font-family:'JetBrains Mono',monospace">A </span> 80–89%</div>
+      <div><span style="color:#22d3ee;font-weight:700;font-family:'JetBrains Mono',monospace">B+</span> 70–79%</div>
+      <div><span style="color:#60a5fa;font-weight:700;font-family:'JetBrains Mono',monospace">B </span> 60–69%</div>
+      <div><span style="color:#fbbf24;font-weight:700;font-family:'JetBrains Mono',monospace">C </span> 50–59%</div>
+      <div><span style="color:#fb923c;font-weight:700;font-family:'JetBrains Mono',monospace">D </span> 40–49%</div>
+      <div><span style="color:#f87171;font-weight:700;font-family:'JetBrains Mono',monospace">F </span> 0–39%</div>
+    </div>
   </div>
 </nav>
 
@@ -703,7 +714,7 @@ tr:last-child td{border-bottom:none}
       </div>
       <div class="g2">
         <div class="card"><div class="card-title">Recent Exam Entries</div><div id="dashRecent"></div></div>
-        <div class="card"><div class="card-title">Needs Attention <span style="color:var(--acc5)">Below 70%</span></div><div id="dashStruggling"></div></div>
+        <div class="card"><div class="card-title">Needs Attention <span style="color:var(--acc5)">Below B+ (&lt; 70%)</span></div><div id="dashStruggling"></div></div>
       </div>
     </div>
 
@@ -1268,18 +1279,19 @@ function examLabel(type,num){return`${type} ${pad(num)}`}
 
 function grd(p){
   if(p>=90)return{g:'A+',c:'#a78bfa'};if(p>=80)return{g:'A',c:'#4ade80'};
-  if(p>=70)return{g:'B',c:'#22d3ee'};if(p>=60)return{g:'C',c:'#fbbf24'};
-  if(p>=50)return{g:'D',c:'#fb923c'};return{g:'F',c:'#f87171'};
+  if(p>=70)return{g:'B+',c:'#22d3ee'};if(p>=60)return{g:'B',c:'#60a5fa'};
+  if(p>=50)return{g:'C',c:'#fbbf24'};if(p>=40)return{g:'D',c:'#fb923c'};
+  return{g:'F',c:'#f87171'};
 }
 function hmColor(p){
   if(p===null)return'var(--s4)';if(p>=90)return'rgba(167,139,250,.7)';
   if(p>=80)return'rgba(74,222,128,.7)';if(p>=70)return'rgba(34,211,238,.65)';
-  if(p>=60)return'rgba(251,191,36,.65)';if(p>=50)return'rgba(251,146,60,.65)';
-  return'rgba(248,113,113,.7)';
+  if(p>=60)return'rgba(96,165,250,.65)';if(p>=50)return'rgba(251,191,36,.65)';
+  if(p>=40)return'rgba(251,146,60,.65)';return'rgba(248,113,113,.7)';
 }
 function scoreClass(p){
   if(p===null)return'';if(p>=80)return'score-a';if(p>=70)return'score-b';
-  if(p>=60)return'score-c';if(p>=50)return'score-d';return'score-f';
+  if(p>=60)return'score-b2';if(p>=50)return'score-c';if(p>=40)return'score-d';return'score-f';
 }
 function killCharts(){_charts.forEach(c=>{try{c.destroy()}catch{}});_charts=[];}
 function toast(msg,type='ok'){
@@ -1523,7 +1535,7 @@ function renderStudents(){
     const se=exams.filter(e=>e.studentId===s.id);const avgs=SUBJ.map(subj=>{const v=se.filter(e=>e.marks[subj]!=null).map(e=>getSubjPct(e,subj));return v.length?Math.round(avg(v)):null;});
     const overall=avgs.filter(v=>v!=null);const oa=overall.length?Math.round(avg(overall)):null;const gr=oa!=null?grd(oa):{g:'—',c:'var(--t3)'};
     const ac=AV_C[i%AV_C.length];const ini=s.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-    const risk=oa!=null&&oa<50?'risk-hi':oa!=null&&oa<70?'risk-md':'risk-lo';const riskL=oa!=null&&oa<50?'HIGH':oa!=null&&oa<70?'MED':'OK';
+    const risk=oa!=null&&oa<40?'risk-hi':oa!=null&&oa<70?'risk-md':'risk-lo';const riskL=oa!=null&&oa<40?'HIGH':oa!=null&&oa<70?'MED':'OK';
     const mentorBadge=isOwnerAll&&s._mentorName?`<div style="font-size:9px;color:var(--acc2);font-weight:700;letter-spacing:.5px;margin-top:2px"><i class="fa-solid fa-user-tie" style="font-size:8px"></i> ${s._mentorName}</div>`:'';
     return`<div class="sc" onclick="${isOwnerAll?'':'openStuDet(\''+s.id+'\')'}">
       <div class="sc-hd"><div class="sc-av" style="background:${ac}">${ini}</div><div style="flex:1"><div class="sc-nm">${s.name}</div><div class="sc-rl">Roll: ${s.roll}${s.batch?' &middot; '+s.batch:''}</div>${mentorBadge}</div>
@@ -1749,7 +1761,7 @@ function renderRisk(){
   const stu=DB.s;const exams=DB.e;const el=document.getElementById('riskStats');
   const isOwnerAll = window._isOwner && window._ownerViewAll;
   const data=stu.map(s=>{const se=exams.filter(e=>e.studentId===s.id);const ps=se.map(e=>getExamOverallPct(e)).filter(v=>v!=null);const last3=ps.slice(-3);const prev3=ps.slice(-6,-3);const trend3=last3.length&&prev3.length?Math.round(avg(last3)-avg(prev3)):null;return{s,ps,avg:ps.length?Math.round(avg(ps)):null,trend3};}).filter(d=>d.avg!==null);
-  const high=data.filter(d=>d.avg<50);const med=data.filter(d=>d.avg>=50&&d.avg<70);const decline=data.filter(d=>d.trend3!==null&&d.trend3<-8);const improve=data.filter(d=>d.trend3!==null&&d.trend3>8);
+  const high=data.filter(d=>d.avg<40);const med=data.filter(d=>d.avg>=40&&d.avg<70);const decline=data.filter(d=>d.trend3!==null&&d.trend3<-8);const improve=data.filter(d=>d.trend3!==null&&d.trend3>8);
   if(el){el.innerHTML=`<div class="stat acc5"><div class="stat-v">${high.length}</div><div class="stat-l">High Risk</div></div><div class="stat acc4"><div class="stat-v">${med.length}</div><div class="stat-l">Medium Risk</div></div><div class="stat acc"><div class="stat-v">${decline.length}</div><div class="stat-l">Declining</div></div><div class="stat acc3"><div class="stat-v">${improve.length}</div><div class="stat-l">Improving</div></div>`;}
   function riskList(arr){if(!arr.length)return`<div class="empty"><p>None</p></div>`;return arr.map(d=>{const g2=grd(d.avg);const mentorTag=isOwnerAll&&d.s._mentorName?`<div style="font-size:9px;color:var(--acc2);font-weight:600;margin-top:2px"><i class="fa-solid fa-user-tie" style="font-size:8px"></i> ${d.s._mentorName}</div>`:'';return`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bdr)"><div style="flex:1"><div style="font-size:13px;font-weight:600">${d.s.name}</div><div style="font-size:10px;color:var(--t2)">Roll: ${d.s.roll}${d.s.batch?' &middot; '+d.s.batch:''}</div>${mentorTag}</div><div style="text-align:right"><div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:800;color:${g2.c}">${d.avg}%</div>${d.trend3!==null?`<div style="font-size:10px;color:${d.trend3>0?'var(--acc3)':'var(--acc5)'}">${d.trend3>0?'↑+':'↓'}${Math.abs(d.trend3)}% recent</div>`:''}</div><button class="btn btn-g btn-xs" onclick="nav('analysis',null);setTimeout(()=>{document.getElementById('aStu').value='${d.s.id}';renderAnalysis()},100)">View</button></div>`;}).join('');}
   document.getElementById('rHigh').innerHTML=riskList(high);document.getElementById('rMed').innerHTML=riskList(med);document.getElementById('rDecline').innerHTML=riskList(decline.length?decline:data.filter(d=>d.trend3!=null&&d.trend3<-5));document.getElementById('rImprove').innerHTML=riskList(improve);
@@ -1782,7 +1794,7 @@ function renderGrades(){
   const el=document.getElementById('gradeContent');if(!el)return;killCharts();
   const isOwnerAll = window._isOwner && window._ownerViewAll;
   const filterSubj=document.getElementById('gradeFilter').value;const stu=DB.s;const exams=DB.e;
-  const grades=[{g:'A+',min:90,max:100,cls:'gA-plus',c:'#a78bfa'},{g:'A',min:80,max:89,cls:'gA',c:'#4ade80'},{g:'B',min:70,max:79,cls:'gB',c:'#22d3ee'},{g:'C',min:60,max:69,cls:'gC',c:'#fbbf24'},{g:'D',min:50,max:59,cls:'gD',c:'#fb923c'},{g:'F',min:0,max:49,cls:'gF',c:'#f87171'}];
+  const grades=[{g:'A+',min:90,max:100,cls:'gA-plus',c:'#a78bfa'},{g:'A',min:80,max:89,cls:'gA',c:'#4ade80'},{g:'B+',min:70,max:79,cls:'gB-plus',c:'#22d3ee'},{g:'B',min:60,max:69,cls:'gB',c:'#60a5fa'},{g:'C',min:50,max:59,cls:'gC',c:'#fbbf24'},{g:'D',min:40,max:49,cls:'gD',c:'#fb923c'},{g:'F',min:0,max:39,cls:'gF',c:'#f87171'}];
   const getStuAvg=(s)=>{const se=exams.filter(e=>e.studentId===s.id);if(!se.length)return null;if(filterSubj==='overall'){const ps=se.map(e=>getExamOverallPct(e)).filter(v=>v!=null);return ps.length?Math.round(avg(ps)):null;}else{const ps=se.filter(e=>e.marks[filterSubj]!=null).map(e=>getSubjPct(e,filterSubj));return ps.length?Math.round(avg(ps)):null;}};
   const stuWithAvgs=stu.map((s,i)=>({...s,pct:getStuAvg(s),idx:i})).filter(x=>x.pct!=null).sort((a,b)=>b.pct-a.pct);const noData=stu.filter(s=>getStuAvg(s)===null);const bandCounts=grades.map(band=>({...band,students:stuWithAvgs.filter(s=>s.pct>=band.min&&s.pct<=band.max)}));
   const mentorTh=isOwnerAll?'<th style="color:var(--acc2)">Mentor</th>':'';
@@ -1801,7 +1813,7 @@ function renderInsights(){
   const insights=[];const stuData=stu.map(s=>{const se=exams.filter(e=>e.studentId===s.id);const ps=se.map(e=>getExamOverallPct(e)).filter(v=>v!=null);const allPcts=ps;const recent3=allPcts.slice(-3);const earlier=allPcts.slice(0,-3);const recentAvg=recent3.length?avg(recent3):null;const earlierAvg=earlier.length?avg(earlier):null;return{s,se,ps,avg:ps.length?Math.round(avg(ps)):null,recentAvg:recentAvg?Math.round(recentAvg):null,earlierAvg:earlierAvg?Math.round(earlierAvg):null,improvement:recentAvg&&earlierAvg?Math.round(recentAvg-earlierAvg):null};}).filter(d=>d.avg!=null);
   const batchAvg=Math.round(avg(stuData.map(d=>d.avg)));
   const scopeLabel = isOwnerAll ? 'Institute-wide avg' : 'Batch avg';
-  insights.push({icon:'fa-users',color:'var(--acc)',title:`${scopeLabel} is ${batchAvg}% — Grade ${grd(batchAvg).g}`,desc:`${stuData.length} students have exam data. ${stuData.filter(d=>d.avg>=70).length} are at B or above.`});
+  insights.push({icon:'fa-users',color:'var(--acc)',title:`${scopeLabel} is ${batchAvg}% — Grade ${grd(batchAvg).g}`,desc:`${stuData.length} students have exam data. ${stuData.filter(d=>d.avg>=70).length} are at B+ or above (≥70%). ${stuData.filter(d=>d.avg>=60&&d.avg<70).length} at grade B (60–69%).`});
   const improved=stuData.filter(d=>d.improvement!=null&&d.improvement>5).sort((a,b)=>b.improvement-a.improvement);if(improved.length)insights.push({icon:'fa-arrow-trend-up',color:'var(--acc3)',title:`Most Improved: ${improved[0].s.name}${isOwnerAll&&improved[0].s._mentorName?' ('+improved[0].s._mentorName+')':''}`,desc:`Up ${improved[0].improvement}% in last 3 exams (${improved[0].recentAvg}% recent vs ${improved[0].earlierAvg}% earlier).`});
   const declined=stuData.filter(d=>d.improvement!=null&&d.improvement<-5).sort((a,b)=>a.improvement-b.improvement);if(declined.length)insights.push({icon:'fa-arrow-trend-down',color:'var(--acc5)',title:`Needs Attention: ${declined[0].s.name}${isOwnerAll&&declined[0].s._mentorName?' ('+declined[0].s._mentorName+')':''}`,desc:`Down ${Math.abs(declined[0].improvement)}% in last 3 exams. Mentor check-in recommended.`});
   const subjBatchAvgs=SUBJ.map(subj=>{const v=exams.filter(e=>e.marks[subj]!=null).map(e=>getSubjPct(e,subj));return{subj,avg:v.length?Math.round(avg(v)):null};}).filter(x=>x.avg!=null).sort((a,b)=>a.avg-b.avg);if(subjBatchAvgs.length)insights.push({icon:'fa-book-open',color:'var(--phy)',title:`Weakest Subject: ${SUBJ_N[subjBatchAvgs[0].subj]} (${subjBatchAvgs[0].avg}%)`,desc:`Strongest: ${SUBJ_N[subjBatchAvgs[subjBatchAvgs.length-1].subj]} (${subjBatchAvgs[subjBatchAvgs.length-1].avg}%). Consider more ${SUBJ_N[subjBatchAvgs[0].subj]} practice sessions.`});
@@ -1867,13 +1879,17 @@ function renderDashboard(){
   if (dashTitle) dashTitle.textContent = isOwnerAll ? 'All Mentors Dashboard' : 'Mentor Dashboard';
   const ecounts=getExamCounts(exams);document.getElementById('dashSub').textContent=`${stu.length} students · ${exams.length} records · MT ${ecounts.mt} · WE ${ecounts.we}`+(isOwnerAll?' · All Mentors':'');
   const allPcts=exams.map(e=>getExamOverallPct(e)).filter(v=>v!=null);const batchAvg=allPcts.length?Math.round(avg(allPcts)):0;
-  document.getElementById('dashStats').innerHTML=`<div class="stat acc"><div class="stat-v">${stu.length}</div><div class="stat-l">Students</div></div><div class="stat acc4"><div class="stat-v">${ecounts.mt}</div><div class="stat-l">Module Tests</div></div><div class="stat acc5"><div class="stat-v">${ecounts.we}</div><div class="stat-l">Weekly Exams</div></div><div class="stat acc3"><div class="stat-v" style="color:${grd(batchAvg).c}">${batchAvg}%</div><div class="stat-l">Batch Average</div><div class="stat-sub">Grade ${grd(batchAvg).g}</div></div><div class="stat acc2"><div class="stat-v" style="color:var(--acc5)">${stu.map(s=>{const se=exams.filter(e=>e.studentId===s.id);const p=se.map(e=>getExamOverallPct(e)).filter(v=>v!=null);return p.length&&avg(p)<50?1:0;}).reduce((a,b)=>a+b,0)}</div><div class="stat-l">High Risk</div></div><div class="stat bio"><div class="stat-v">${stu.map(s=>{const se=exams.filter(e=>e.studentId===s.id);const p=se.map(e=>getExamOverallPct(e)).filter(v=>v!=null);return p.length&&avg(p)>=70?1:0;}).reduce((a,b)=>a+b,0)}</div><div class="stat-l">Grade B+</div></div>`;
+  const _stuAvgs=stu.map(s=>{const se=exams.filter(e=>e.studentId===s.id);const p=se.map(e=>getExamOverallPct(e)).filter(v=>v!=null);return{s,avg:p.length?avg(p):null};});
+  const _highRiskCnt=_stuAvgs.filter(d=>d.avg!==null&&d.avg<40).length;
+  const _bPlusCnt=_stuAvgs.filter(d=>d.avg!==null&&d.avg>=70).length;
+  const _bAndAboveCnt=_stuAvgs.filter(d=>d.avg!==null&&d.avg>=60).length;
+  document.getElementById('dashStats').innerHTML=`<div class="stat acc"><div class="stat-v">${stu.length}</div><div class="stat-l">Students</div></div><div class="stat acc4"><div class="stat-v">${ecounts.mt}</div><div class="stat-l">Module Tests</div></div><div class="stat acc5"><div class="stat-v">${ecounts.we}</div><div class="stat-l">Weekly Exams</div></div><div class="stat acc3"><div class="stat-v" style="color:${grd(batchAvg).c}">${batchAvg}%</div><div class="stat-l">Batch Average</div><div class="stat-sub">Grade ${grd(batchAvg).g}</div></div><div class="stat acc2"><div class="stat-v" style="color:var(--acc5)">${_highRiskCnt}</div><div class="stat-l">Grade F (< 40%)</div><div class="stat-sub">Needs urgent help</div></div><div class="stat bio"><div class="stat-v" style="color:#22d3ee">${_bPlusCnt}</div><div class="stat-l">B+ & Above</div><div class="stat-sub">≥ 70% performers</div></div><div class="stat acc2" style="--acc2:#60a5fa"><div class="stat-v" style="color:#60a5fa">${_bAndAboveCnt}</div><div class="stat-l">B & Above</div><div class="stat-sub">≥ 60% performers</div></div>`;
   const lbEl=document.getElementById('dashLB');const scores=stu.map(s=>{const se=exams.filter(e=>e.studentId===s.id);const p=se.map(e=>getExamOverallPct(e)).filter(v=>v!=null);return{...s,avg:p.length?Math.round(avg(p)):null};}).filter(s=>s.avg!=null).sort((a,b)=>b.avg-a.avg).slice(0,5);
   lbEl.innerHTML=scores.map((s,i)=>{const g2=grd(s.avg);const medals=['fa-trophy','fa-medal','fa-award'];return`<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--bdr)"><div style="width:26px;text-align:center;font-size:14px">${i<3?`<i class="fa-solid ${medals[i]}" style="color:${['#ffd700','#c0c0c0','#cd7f32'][i]}"></i>`:`<span style="color:var(--t3);font-family:'JetBrains Mono',monospace;font-size:12px">${i+1}</span>`}</div><div style="flex:1"><div style="font-size:13px;font-weight:600">${s.name}</div><div style="font-size:10px;color:var(--t3)">Roll: ${s.roll}</div></div><span style="font-family:'JetBrains Mono',monospace;font-weight:800;color:${g2.c};font-size:15px">${s.avg}%</span></div>`;}).join('')||`<div class="empty"><p>No data</p></div>`;
   const rEl=document.getElementById('dashRecent');const recent=exams.slice().sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,6);
   rEl.innerHTML=recent.map(e=>{const s=stu.find(st=>st.id===e.studentId);const p=getExamOverallPct(e);const g2=p!=null?grd(p):{g:'—',c:'var(--t3)'};return`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--bdr)"><span class="badge b-${e.type.toLowerCase()}">${e.type}</span><div style="flex:1"><div style="font-size:12px;font-weight:500">${s?s.name:'?'}</div><div style="font-size:10px;color:var(--t2)">${e.examName}${e.date?' &middot; '+e.date:''}</div></div><span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:${g2.c};font-size:13px">${p!=null?p+'%':'—'}</span></div>`;}).join('')||`<div class="empty"><p>No entries yet</p></div>`;
   const sEl=document.getElementById('dashStruggling');const struggling=stu.map(s=>{const se=exams.filter(e=>e.studentId===s.id);const p=se.map(e=>getExamOverallPct(e)).filter(v=>v!=null);return{...s,avg:p.length?Math.round(avg(p)):null};}).filter(s=>s.avg!=null&&s.avg<70).sort((a,b)=>a.avg-b.avg);
-  sEl.innerHTML=struggling.length?struggling.map(s=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--bdr)"><div style="flex:1"><div style="font-size:12px;font-weight:500">${s.name}</div><div style="font-size:10px;color:var(--t3)">Roll: ${s.roll}</div></div><span class="risk ${s.avg<50?'risk-hi':'risk-md'}">${s.avg}% ${s.avg<50?'HIGH':'MED'}</span></div>`).join(''):`<div style="color:var(--acc3);font-size:12px;padding:20px;text-align:center">All at 70%+ &#10003;</div>`;
+  sEl.innerHTML=struggling.length?struggling.map(s=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--bdr)"><div style="flex:1"><div style="font-size:12px;font-weight:500">${s.name}</div><div style="font-size:10px;color:var(--t3)">Roll: ${s.roll} · ${grd(s.avg).g}</div></div><span class="risk ${s.avg<40?'risk-hi':'risk-md'}">${s.avg}% ${s.avg<40?'HIGH':'MED'}</span></div>`).join(''):`<div style="color:var(--acc3);font-size:12px;padding:20px;text-align:center">All at B+ (70%+) &#10003;</div>`;
   setTimeout(()=>{const co5=getChartCo();const tc=document.getElementById('dashTrendChart');
   if(tc){const allExamNames=[...new Set(exams.map(e=>e.examName))].sort((a,b)=>{const ta=a.split(' ')[0],na=parseInt(a.split(' ')[1]||0);const tb=b.split(' ')[0],nb=parseInt(b.split(' ')[1]||0);if(ta!==tb)return ta.localeCompare(tb);return na-nb;});const batchAvgs=allExamNames.map(name=>{const row=exams.filter(e=>e.examName===name);const p=row.map(e=>getExamOverallPct(e)).filter(v=>v!=null);return p.length?Math.round(avg(p)):null;});document.getElementById('dashTrendMeta').textContent=`${allExamNames.length} exams`;_charts.push(new Chart(tc,{type:'line',data:{labels:allExamNames,datasets:[{label:'Batch Avg',data:batchAvgs,borderColor:'#4f9eff',backgroundColor:'rgba(79,158,255,.08)',fill:true,borderWidth:2.5,pointRadius:4,tension:.35,spanGaps:true,pointBackgroundColor:allExamNames.map(n=>n.startsWith('WE')?'#f87171':'#fbbf24'),pointRadius:5}]},options:{...co5,plugins:{...co5.plugins,legend:{display:false}}}}));}
   const src=document.getElementById('dashSubjChart');if(src){const sa=SUBJ.map(subj=>{const v=exams.filter(e=>e.marks[subj]!=null).map(e=>getSubjPct(e,subj));return v.length?Math.round(avg(v)):0;});_charts.push(new Chart(src,{type:'radar',data:{labels:SUBJ.map(s=>SUBJ_N[s]),datasets:[{label:'Batch Avg',data:sa,backgroundColor:'rgba(79,158,255,.1)',borderColor:'#4f9eff',pointBackgroundColor:'#4f9eff',borderWidth:2,pointRadius:4}]},options:{...getRadarOpts(),plugins:{legend:{display:false}}}}));}
