@@ -76,6 +76,22 @@ window._unsubscribers = [];
 // Show loading overlay while Firebase resolves auth
 document.getElementById('loadingOverlay').style.display = 'flex';
 
+
+// ── Normalize exam marks keys: converts legacy lowercase (bio/chm/phy/mth)
+//    to current uppercase (BIO/CHM/PHY/MATHS) so old data still displays.
+function normExam(e){
+  if(!e||!e.marks)return e;
+  const KEY_MAP={bio:'BIO',chm:'CHM',phy:'PHY',mth:'MATHS'};
+  const needsFix=Object.keys(e.marks).some(k=>KEY_MAP[k]);
+  if(!needsFix)return e;
+  const marks={...e.marks};const totals={...e.totals};
+  Object.entries(KEY_MAP).forEach(([lc,uc])=>{
+    if(marks[lc]!==undefined){marks[uc]=marks[lc];delete marks[lc];}
+    if(totals&&totals[lc]!==undefined){totals[uc]=totals[lc];delete totals[lc];}
+  });
+  return{...e,marks,totals};
+}
+
 onAuthStateChanged(auth, async user => {
   if (!user) {
     window.location.href = 'index.html';
@@ -156,7 +172,7 @@ window.loadUserData = async function(uid) {
       refreshUI();
     });
     const unsubExm = onSnapshot(examRef, snap => {
-      window._DB_E = snap.docs.map(d => d.data());
+      window._DB_E = snap.docs.map(d => normExam(d.data()));
       refreshUI();
     });
 
@@ -165,7 +181,7 @@ window.loadUserData = async function(uid) {
     // Initial load (wait for first snapshot)
     await Promise.all([
       getDocs(stuRef).then(snap => { window._DB_S = snap.docs.map(d => d.data()); }),
-      getDocs(examRef).then(snap => { window._DB_E = snap.docs.map(d => d.data()); })
+      getDocs(examRef).then(snap => { window._DB_E = snap.docs.map(d => normExam(d.data())); })
     ]);
   } catch(e) {
     console.error('Firestore load error:', e);
@@ -214,7 +230,7 @@ window.loadAllMentorsData = async function() {
       const stuSnap  = await getDocs(collection(db, 'mentors', uid, 'students'));
       const examSnap = await getDocs(collection(db, 'mentors', uid, 'exams'));
       const stuDocs  = stuSnap.docs.map(d => ({ ...d.data(), _mentorUid: uid, _mentorName: name }));
-      const exmDocs  = examSnap.docs.map(d => ({ ...d.data(), _mentorUid: uid, _mentorName: name }));
+      const exmDocs  = examSnap.docs.map(d => normExam({ ...d.data(), _mentorUid: uid, _mentorName: name }));
       allStudents = allStudents.concat(stuDocs);
       allExams    = allExams.concat(exmDocs);
     }
@@ -263,7 +279,7 @@ window._loadAllMentors = async function() {
     results[uid] = {
       name,
       students: stuSnap.docs.map(d => d.data()),
-      exams:    examSnap.docs.map(d => d.data())
+      exams:    examSnap.docs.map(d => normExam(d.data()))
     };
   }
   return results;
