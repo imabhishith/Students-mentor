@@ -19,7 +19,7 @@ import { getFirestore, doc, collection, getDocs, setDoc, deleteDoc, onSnapshot, 
                                    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // ══════════════════════════════════════════════════════════
-// 🔧 STEP 1: Paste your Firebase config here
+//  STEP 1: Paste your Firebase config here
 //    (Firebase Console → Project Settings → Your Apps)
 // ══════════════════════════════════════════════════════════
 const firebaseConfig = {
@@ -32,14 +32,14 @@ const firebaseConfig = {
   measurementId: "G-H099X2RKEN"
 };
 // ══════════════════════════════════════════════════════════
-// 🔧 STEP 2: Set your owner UID here.
+//  STEP 2: Set your owner UID here.
 //    After creating the owner account in Firebase Auth,
 //    go to Authentication → Users, copy the UID.
 // ══════════════════════════════════════════════════════════
 const OWNER_UID = "Pk05qoYgGZep5i2XfDqHbYanQ2H2";
 
 // ══════════════════════════════════════════════════════════
-// 🔧 DATA ENTRY UID — create a Firebase Auth account for
+//  DATA ENTRY UID — create a Firebase Auth account for
 //    the data entry person, then paste their UID here.
 //    ⚠️  REQUIRED: Replace "DATA_ENTRY_UID_HERE" with the
 //    actual UID from Firebase Auth → Users, or data entry
@@ -48,7 +48,7 @@ const OWNER_UID = "Pk05qoYgGZep5i2XfDqHbYanQ2H2";
 const DATA_ENTRY_UID = "6ft3u2oXCgVlvGPLwLhqYMJjbPZ2"; // ← PASTE REAL UID HERE
 
 // ══════════════════════════════════════════════════════════
-// 🔧 STEP 3: Set display names for each mentor UID.
+//  STEP 3: Set display names for each mentor UID.
 //    After creating each mentor account, copy their UIDs.
 // ══════════════════════════════════════════════════════════
 const MENTOR_NAMES = {
@@ -222,7 +222,7 @@ window.loadAllMentorsData = async function() {
     window._DB_E = allExams;
     // Show "All Mentors" banner
     const banner = document.getElementById('viewingBanner');
-    banner.textContent = `👑 Viewing: ALL MENTORS — ${allStudents.length} students, ${allExams.length} records`;
+    banner.innerHTML = `<i class="fa-solid fa-crown" style="margin-right:6px"></i> Viewing: ALL MENTORS &mdash; ${allStudents.length} students, ${allExams.length} records`;
     banner.style.display = 'block';
     refreshUI();
   } catch(e) {
@@ -241,7 +241,7 @@ window._switchMentor = async function(uid) {
   window._viewingUID = uid;
   window._ownerViewAll = false;
   const name = MENTOR_NAMES[uid] || uid;
-  document.getElementById('viewingBanner').textContent = `Viewing: ${name}`;
+  document.getElementById('viewingBanner').innerHTML = `<i class="fa-solid fa-eye" style="margin-right:6px"></i> Viewing: ${name}`;
   document.getElementById('viewingBanner').style.display = 'block';
   await loadUserData(uid);
   if (typeof nav === 'function') nav('dashboard', null);
@@ -603,6 +603,22 @@ tr:last-child td{border-bottom:none}
 .insight-body{flex:1}
 .insight-title{font-size:12px;font-weight:700;color:var(--t1)}
 .insight-desc{font-size:11px;color:var(--t2);margin-top:2px;line-height:1.5}
+/* ── Q Analysis ── */
+.qa-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(32px,1fr));gap:3px;margin-bottom:8px}
+.qa-cell{height:28px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;font-family:'JetBrains Mono',monospace;cursor:default;transition:transform .15s;position:relative}
+.qa-cell:hover{transform:scale(1.12);z-index:2}
+.qa-c{background:rgba(74,222,128,.2);color:#4ade80;border:1px solid rgba(74,222,128,.3)}
+.qa-w{background:rgba(248,113,113,.2);color:#f87171;border:1px solid rgba(248,113,113,.3)}
+.qa-u{background:rgba(255,255,255,.04);color:var(--t4);border:1px solid var(--bdr)}
+.qa-x{background:rgba(167,139,250,.15);color:var(--acc2);border:1px solid rgba(167,139,250,.2)}
+.qa-n{background:transparent;color:var(--t4);border:1px dashed var(--t4);opacity:.3}
+.sr-ring{width:80px;height:80px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-direction:column;position:relative;flex-shrink:0}
+.sr-ring svg{position:absolute;inset:0;transform:rotate(-90deg)}
+.sr-val{font-size:18px;font-weight:800;font-family:'JetBrains Mono',monospace;z-index:1}
+.sr-lbl{font-size:8px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);z-index:1}
+.subj-sr-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:8px}
+.subj-sr-card{background:var(--s2);border:1px solid var(--bdr);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:4px}
+
 </style>
 </head>
 <body>
@@ -654,6 +670,7 @@ tr:last-child td{border-bottom:none}
     <button class="sb-item" onclick="nav('progress',this)"><i class="fa-solid fa-chart-line"></i>Progress</button>
     <button class="sb-item" onclick="nav('grades',this)"><i class="fa-solid fa-layer-group"></i>Grade Groups</button>
     <button class="sb-item" onclick="nav('insights',this)"><i class="fa-solid fa-lightbulb"></i>AI Insights</button>
+    <button class="sb-item" onclick="nav('qanalysis',this)"><i class="fa-solid fa-crosshairs"></i>Q Analysis</button>
   </div>
 
   <!-- Owner mentor switcher (only for owner) -->
@@ -828,10 +845,10 @@ tr:last-child td{border-bottom:none}
       <div class="ph"><div><h1>Performance Heatmap</h1><p>Visual grid of all students across all exams</p></div>
         <div class="tabs" style="margin-bottom:0">
           <button class="tab active" onclick="setHMSubj('total',this)">Total</button>
-          <button class="tab" onclick="setHMSubj('bio',this)">BIO</button>
-          <button class="tab" onclick="setHMSubj('chm',this)">CHM</button>
-          <button class="tab" onclick="setHMSubj('phy',this)">PHY</button>
-          <button class="tab" onclick="setHMSubj('mth',this)">MATHS</button>
+          <button class="tab" onclick="setHMSubj('BIO',this)">BIO</button>
+          <button class="tab" onclick="setHMSubj('CHM',this)">CHM</button>
+          <button class="tab" onclick="setHMSubj('PHY',this)">PHY</button>
+          <button class="tab" onclick="setHMSubj('MATHS',this)">MATHS</button>
         </div>
       </div>
       <div class="card">
@@ -887,13 +904,27 @@ tr:last-child td{border-bottom:none}
         <div><h1>Grade Groups</h1><p>Students categorized by overall performance grade</p></div>
         <select class="fs" id="gradeFilter" onchange="renderGrades()" style="max-width:180px">
           <option value="overall">Overall Average</option>
-          <option value="bio">Biology</option>
-          <option value="chm">Chemistry</option>
-          <option value="phy">Physics</option>
-          <option value="mth">Maths</option>
+          <option value="BIO">Biology</option>
+          <option value="CHM">Chemistry</option>
+          <option value="PHY">Physics</option>
+          <option value="MATHS">Maths</option>
         </select>
       </div>
       <div id="gradeContent"></div>
+    </div>
+
+
+    <!-- Q ANALYSIS PAGE -->
+    <div class="page" id="pg-qanalysis">
+      <div class="ph">
+        <div><h1><i class="fa-solid fa-crosshairs" style="color:var(--acc2);font-size:16px;margin-right:8px"></i>Question-wise Analysis</h1><p>Strike rate, accuracy &amp; detailed question-level insights</p></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <select class="fs" id="qaStu" onchange="qaLoadExams()" style="max-width:220px"><option value="">— Select Student —</option></select>
+          <select class="fs" id="qaExam" onchange="renderQAnalysis()" style="max-width:200px"><option value="">— Select Exam —</option></select>
+          <button class="btn btn-bulk btn-sm" onclick="openQBulk()"><i class="fa-solid fa-upload"></i> Bulk Q Entry</button>
+        </div>
+      </div>
+      <div id="qaContent"><div class="empty"><div class="empty-ic"><i class="fa-solid fa-crosshairs"></i></div><p>Select a student and exam to view question-wise analysis</p></div></div>
     </div>
 
     <!-- AI INSIGHTS -->
@@ -941,6 +972,8 @@ tr:last-child td{border-bottom:none}
       <button class="sb-item active" id="de-nav-de-students" onclick="deNav('de-students',this)"><i class="fa-solid fa-users"></i>Students<span class="sb-badge" id="deSBCount">0</span></button>
       <button class="sb-item" id="de-nav-de-exams" onclick="deNav('de-exams',this)"><i class="fa-solid fa-file-pen"></i>Exam Entry</button>
       <button class="sb-item" id="de-nav-de-bulk" onclick="deNav('de-bulk',this)"><i class="fa-solid fa-upload"></i>Bulk Entry</button>
+      <div class="sb-section">Analytics</div>
+      <button class="sb-item" id="de-nav-de-qanalysis" onclick="deNav('de-qanalysis',this)"><i class="fa-solid fa-crosshairs"></i>Q Entry</button>
     </div>
 
     <div class="sb-footer">
@@ -1107,6 +1140,25 @@ tr:last-child td{border-bottom:none}
         </div>
       </div>
 
+
+      <!-- DE: Q ANALYSIS PAGE -->
+      <div class="page" id="pg-de-qanalysis">
+        <div class="ph">
+          <div><h1>Q Entry</h1><p>Add question-wise data for exams</p></div>
+          <button class="btn btn-p btn-sm" onclick="openQBulk()"><i class="fa-solid fa-upload"></i> Bulk Q Entry</button>
+        </div>
+        <div class="card">
+          <div class="card-title">Quick Q Entry</div>
+          <div class="fr">
+            <div class="fg"><label class="fl">Student</label><select class="fs" id="deQAStu" onchange="deQALoadExams()" style="font-size:12px"><option value="">— Select —</option></select></div>
+            <div class="fg"><label class="fl">Exam</label><select class="fs" id="deQAExam" style="font-size:12px"><option value="">— Select —</option></select></div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-top:8px">
+            <button class="btn btn-p" onclick="openQBulk()"><i class="fa-solid fa-upload"></i> Open Q Bulk Entry</button>
+          </div>
+        </div>
+      </div>
+
     </div><!-- /.content -->
   </div><!-- /.de main -->
 </div><!-- /#deApp -->
@@ -1186,27 +1238,34 @@ tr:last-child td{border-bottom:none}
 
 <div class="mo" id="moBulk" style="display:none" onclick="closeMo('moBulk',event)">
   <div class="md" style="max-width:760px">
-    <div class="mh"><h3 id="bulkTitle">Bulk Entry</h3><button class="cx" onclick="closeMo('moBulk')">&#10005;</button></div>
+    <div class="mh"><h3 id="bulkTitle"><i class="fa-solid fa-upload" style="color:var(--acc2);margin-right:8px"></i>Bulk Entry</h3><button class="cx" onclick="closeMo('moBulk')">&#10005;</button></div>
+    <div id="bulkMentorRow" style="display:none;margin-bottom:14px;padding:10px 12px;background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.2);border-radius:var(--r)">
+      <div style="display:flex;align-items:center;gap:10px">
+        <i class="fa-solid fa-user-tie" style="color:var(--acc2);font-size:13px"></i>
+        <label style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--acc2);white-space:nowrap">Target Mentor</label>
+        <select class="fs" id="bulkMentorSel" style="flex:1;font-size:12px"></select>
+      </div>
+    </div>
     <div class="tabs" style="margin-bottom:16px">
       <button class="tab active" id="bTabStu" onclick="switchBulkTab('students')">Students</button>
       <button class="tab" id="bTabExm" onclick="switchBulkTab('exams')">Exam Marks</button>
     </div>
     <div id="bPanelStudents">
       <div class="alert a-info" style="margin-bottom:12px">One per line: <strong>Roll, Name, Batch, Phone</strong><br>E.g.: <code style="font-family:'JetBrains Mono',monospace;font-size:11px">001, Arjun Sharma, NEET-A, 9876543210</code></div>
-      <div class="fg"><label class="fl">Paste Student Data</label><textarea class="bulk-textarea" id="bulkStuText" placeholder="001, Arjun Sharma, NEET-A, 9876543210&#10;002, Priya Verma, NEET-B"></textarea></div>
+      <div class="fg"><label class="fl">Paste Student Data</label><textarea class="bulk-textarea" id="bulkStuText" placeholder="001, Arjun Sharma, NEET-A, 9876543210&#10;002, Priya Verma, NEET-B" oninput="parseBulkStudentsLive()"></textarea></div>
       <div id="bulkStuPreview" style="margin-bottom:12px;max-height:180px;overflow-y:auto"></div>
       <div style="display:flex;justify-content:flex-end;gap:8px">
         <button class="btn btn-g" onclick="parseBulkStudents()">Preview</button>
-        <button class="btn btn-p" id="btnBulkStuSave" onclick="saveBulkStudents()" style="display:none">Save All</button>
+        <button class="btn btn-p" id="btnBulkStuSave" onclick="saveBulkStudents()" style="display:none"><i class="fa-solid fa-floppy-disk"></i> Save All</button>
       </div>
     </div>
     <div id="bPanelExams" style="display:none">
-      <div class="alert a-info" style="margin-bottom:12px">One entry per line: <strong>Roll, ExamName, Date(YYYY-MM-DD), BIO/Total, CHM/Total, PHY/Total, MTH/Total</strong><br>E.g.: <code style="font-family:'JetBrains Mono',monospace;font-size:11px">001, MT 01, 2025-06-10, 45/60, 50/60, 38/60, 52/60</code></div>
+      <div class="alert a-info" style="margin-bottom:12px">One entry per line: <strong>Roll, ExamName, Date(YYYY-MM-DD), BIO/Total, CHM/Total, PHY/Total, MATHS/Total</strong><br>E.g.: <code style="font-family:'JetBrains Mono',monospace;font-size:11px">001, MT 01, 2025-06-10, 45/60, 50/60, 38/60, 52/60</code></div>
       <div class="fg"><label class="fl">Paste Exam Data</label><textarea class="bulk-textarea" id="bulkExmText" placeholder="001, MT 01, 2025-06-10, 45/60, 50/60, 38/60, 52/60"></textarea></div>
       <div id="bulkExmPreview" style="margin-bottom:12px;max-height:200px;overflow-y:auto"></div>
       <div style="display:flex;justify-content:flex-end;gap:8px">
         <button class="btn btn-g" onclick="parseBulkExams()">Preview</button>
-        <button class="btn btn-p" id="btnBulkExmSave" onclick="saveBulkExams()" style="display:none">Save All</button>
+        <button class="btn btn-p" id="btnBulkExmSave" onclick="saveBulkExams()" style="display:none"><i class="fa-solid fa-floppy-disk"></i> Save All</button>
       </div>
     </div>
   </div>
@@ -1215,9 +1274,9 @@ tr:last-child td{border-bottom:none}
 <div id="toasts"></div>
 
 <script>
-const SUBJ=['bio','chm','phy','mth'];
-const SUBJ_N={bio:'Biology',chm:'Chemistry',phy:'Physics',mth:'Maths'};
-const SUBJ_C={bio:'#22d3ee',chm:'#a78bfa',phy:'#fb923c',mth:'#4ade80'};
+const SUBJ=['BIO','CHM','PHY','MATHS'];const SUBJ_CSS={BIO:'bio',CHM:'chm',PHY:'phy',MATHS:'mth'};
+const SUBJ_N={BIO:'Biology',CHM:'Chemistry',PHY:'Physics',MATHS:'Maths'};
+const SUBJ_C={BIO:'#22d3ee',CHM:'#a78bfa',PHY:'#fb923c',MATHS:'#4ade80'};
 const AV_C=['#22d3ee','#a78bfa','#fb923c','#4ade80','#f87171','#fbbf24','#60a5fa','#34d399'];
 const EXAM_TOTAL=240;
 
@@ -1374,6 +1433,20 @@ function nav(page,el){
   if(page==='grades')renderGrades();
   if(page==='insights')renderInsights();
   if(page==='owner')loadOwnerOverview();
+  if(page==='qanalysis'){
+    const isOwnerAll2=window._isOwner&&window._ownerViewAll;
+    let qopts2='<option value="">— Select Student —</option>';
+    if(isOwnerAll2&&window._FB&&window._FB.MENTOR_NAMES){
+      Object.entries(window._FB.MENTOR_NAMES).forEach(([uid,mname])=>{
+        const mStu=DB.s.filter(s=>s._mentorUid===uid).sort((a,b)=>a.roll.localeCompare(b.roll,undefined,{numeric:true}));
+        if(mStu.length)qopts2+=`<optgroup label="— ${mname} —">${mStu.map(s=>`<option value="${s.id}">${s.roll} – ${s.name}</option>`).join('')}</optgroup>`;
+      });
+    }else{
+      qopts2+= DB.s.slice().sort((a,b)=>a.roll.localeCompare(b.roll,undefined,{numeric:true})).map(s=>`<option value="${s.id}">${s.roll} – ${s.name}</option>`).join('');
+    }
+    document.getElementById('qaStu').innerHTML=qopts2;
+    document.getElementById('qaContent').innerHTML='<div class="empty"><div class="empty-ic"><i class="fa-solid fa-crosshairs"></i></div><p>Select a student and exam</p></div>';
+  }
 }
 
 // MODALS
@@ -1427,13 +1500,26 @@ function saveEditExam(){
 
 // BULK ENTRY
 let _bulkStuParsed=[],_bulkExmParsed=[];
-function openBulk(){switchBulkTab('students');document.getElementById('moBulk').style.display='flex';}
-function openBulkStudents(){switchBulkTab('students');document.getElementById('moBulk').style.display='flex';}
-function openBulkExams(){switchBulkTab('exams');document.getElementById('moBulk').style.display='flex';}
+function openBulk(){
+  switchBulkTab('students');
+  document.getElementById('moBulk').style.display='flex';
+  const mentorRow=document.getElementById('bulkMentorRow');
+  if(window._isOwner||window._isDataEntry){
+    mentorRow.style.display='block';
+    const sel=document.getElementById('bulkMentorSel');
+    if(sel&&window._FB&&window._FB.MENTOR_NAMES){
+      sel.innerHTML=Object.entries(window._FB.MENTOR_NAMES).map(([uid,name])=>`<option value="${uid}">${name}</option>`).join('');
+      if(window._viewingUID&&window._FB.MENTOR_NAMES[window._viewingUID])sel.value=window._viewingUID;
+    }
+  }else{mentorRow.style.display='none';}
+}
+function openBulkStudents(){openBulk();switchBulkTab('students');}
+function openBulkExams(){openBulk();switchBulkTab('exams');}
 function switchBulkTab(tab){
   document.getElementById('bPanelStudents').style.display=tab==='students'?'block':'none';document.getElementById('bPanelExams').style.display=tab==='exams'?'block':'none';
   document.getElementById('bTabStu').classList.toggle('active',tab==='students');document.getElementById('bTabExm').classList.toggle('active',tab==='exams');
 }
+function parseBulkStudentsLive(){parseBulkStudents();}
 function parseBulkStudents(){
   const raw=document.getElementById('bulkStuText').value.trim();if(!raw){toast('Nothing to parse','wa');return;}
   const lines=raw.split('\n').map(l=>l.trim()).filter(l=>l);const existingRolls=new Set(DB.s.map(s=>s.roll.toLowerCase()));
@@ -1449,10 +1535,14 @@ function parseBulkStudents(){
 }
 async function saveBulkStudents(){
   if(!_bulkStuParsed.length){toast('Nothing to save','wa');return;}
+  const origUID=window._viewingUID;
+  const targetUID=(window._isOwner||window._isDataEntry)?((document.getElementById('bulkMentorSel')||{}).value||origUID):origUID;
+  if(targetUID&&targetUID!==origUID)window._viewingUID=targetUID;
   const newStudents=_bulkStuParsed.map(s=>({id:uid(),roll:s.roll,name:s.name,batch:s.batch,phone:s.phone,note:'',createdAt:new Date().toISOString()}));
-  const stu=[...DB.s,...newStudents];window._DB_S=stu;
   for(const s of newStudents){if(window._saveStudent)await window._saveStudent(s);}
-  toast(`${_bulkStuParsed.length} students added`);_bulkStuParsed=[];
+  window._viewingUID=origUID;
+  const mName=(window._FB&&window._FB.MENTOR_NAMES&&window._FB.MENTOR_NAMES[targetUID])||'selected mentor';
+  toast(`${_bulkStuParsed.length} students added for ${mName}`);_bulkStuParsed=[];
   document.getElementById('bulkStuText').value='';document.getElementById('bulkStuPreview').innerHTML='';document.getElementById('btnBulkStuSave').style.display='none';
   popSelects();renderStudents();updateSBCount();closeMo('moBulk');
 }
@@ -1473,7 +1563,7 @@ function parseBulkExams(){
     if(parseErr){html+=`<div class="bulk-preview-row er"><div class="bulk-row-num">${i+1}</div><span>${parseErr}</span></div>`;return;}
     if(!Object.keys(marks).length){html+=`<div class="bulk-preview-row er"><div class="bulk-row-num">${i+1}</div><span>No marks found</span></div>`;return;}
     const record={roll,studentId:stu.id,examName:finalExamName,examNum,type:examType,date:date||'',marks,totals,createdAt:new Date().toISOString(),id:uid()};
-    _bulkExmParsed.push(record);const subjSummary=Object.keys(marks).map(k=>`<span style="color:var(--${k==='mth'?'mth':k})">${k.toUpperCase()} ${marks[k]}/${totals[k]}</span>`).join(' ');
+    _bulkExmParsed.push(record);const subjSummary=Object.keys(marks).map(k=>`<span style="color:var(--${SUBJ_CSS[k]||'acc'})">${k} ${marks[k]}/${totals[k]}</span>`).join(' ');
     html+=`<div class="bulk-preview-row ok"><div class="bulk-row-num">${i+1}</div><span style="color:var(--acc3)">&#10003;</span><span style="flex:1"><strong>${stu.name}</strong> &mdash; ${finalExamName} &middot; ${subjSummary}</span></div>`;
   });
   document.getElementById('bulkExmPreview').innerHTML=html||'<div style="color:var(--t3);font-size:12px;padding:8px">Nothing to preview</div>';
@@ -1481,9 +1571,13 @@ function parseBulkExams(){
 }
 async function saveBulkExams(){
   if(!_bulkExmParsed.length){toast('Nothing to save','wa');return;}
-  const ex=[...DB.e,..._bulkExmParsed];window._DB_E=ex;
+  const origUID=window._viewingUID;
+  const targetUID=(window._isOwner||window._isDataEntry)?((document.getElementById('bulkMentorSel')||{}).value||origUID):origUID;
+  if(targetUID&&targetUID!==origUID)window._viewingUID=targetUID;
   for(const r of _bulkExmParsed){if(window._saveExam)await window._saveExam(r);}
-  toast(`${_bulkExmParsed.length} exam records saved`);_bulkExmParsed=[];
+  window._viewingUID=origUID;
+  const mName=(window._FB&&window._FB.MENTOR_NAMES&&window._FB.MENTOR_NAMES[targetUID])||'selected mentor';
+  toast(`${_bulkExmParsed.length} exam records saved for ${mName}`);_bulkExmParsed=[];
   document.getElementById('bulkExmText').value='';document.getElementById('bulkExmPreview').innerHTML='';document.getElementById('btnBulkExmSave').style.display='none';
   updateSBCount();renderExamTable();renderRecentEntries();closeMo('moBulk');
 }
@@ -1555,11 +1649,12 @@ function openStuDet(id){
     <div style="flex:1;background:var(--s2);padding:8px 12px;border-radius:8px;border:1px solid var(--bdr)"><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:1px">Total Records</div><div style="font-size:18px;font-weight:800;color:var(--acc)">${exams.length}</div></div>
   </div>`;
   if(!exams.length){html+=`<div class="empty"><p>No exam records yet</p></div>`;}
-  else{html+=`<div class="tw"><table><thead><tr><th>Exam</th><th>Type</th><th>Date</th><th style="color:var(--bio)">BIO</th><th style="color:var(--chm)">CHM</th><th style="color:var(--phy)">PHY</th><th style="color:var(--mth)">MTH</th><th>%</th><th>Grade</th><th></th></tr></thead><tbody>
+  else{html+=`<div class="tw"><table><thead><tr><th>Exam</th><th>Type</th><th>Date</th><th style="color:var(--bio)">BIO</th><th style="color:var(--chm)">CHM</th><th style="color:var(--phy)">PHY</th><th style="color:var(--mth)">MTH</th><th>Total</th><th>%</th><th>Grade</th><th>Q</th><th></th></tr></thead><tbody>
     ${exams.map(e=>{const p=getExamOverallPct(e);const g2=p!=null?grd(p):{g:'—',c:'var(--t3)'};
       return`<tr><td>${e.examName}</td><td><span class="badge b-${e.type.toLowerCase()}">${e.type}</span></td><td style="color:var(--t2)">${e.date||'—'}</td>
         ${SUBJ.map(subj=>{const t=getSubjTotal(e,subj);return`<td class="tc" style="color:${SUBJ_C[subj]}">${e.marks[subj]!=null?e.marks[subj]+'/'+t:'—'}</td>`;}).join('')}
-        <td class="tc" style="color:${g2.c};font-weight:700">${p!=null?p+'%':'—'}</td><td><span style="color:${g2.c};font-weight:800;font-family:'JetBrains Mono',monospace">${g2.g}</span></td>
+        <td class="tc" style="font-family:'JetBrains Mono',monospace;font-weight:700">${getExamTotalScored(e)}/${getExamTotalMax(e)}</td><td class="tc" style="color:${g2.c};font-weight:700">${p!=null?p+'%':'—'}</td><td><span style="color:${g2.c};font-weight:800;font-family:'JetBrains Mono',monospace">${g2.g}</span></td>
+        <td class="tc">${e.qdata?'<i class="fa-solid fa-crosshairs" style="color:var(--acc2);font-size:10px" title="Has Q data"></i>':'<span style="color:var(--t4);font-size:9px">—</span>'}</td>
         <td style="display:flex;gap:4px"><button class="btn btn-edit btn-xs" onclick="openEditExam('${e.id}')"><i class="fa-solid fa-pen"></i></button><button class="btn btn-d btn-xs" onclick="delExam('${e.id}')"><i class="fa-solid fa-trash"></i></button></td></tr>`;
     }).join('')}
   </tbody></table></div>`;}
@@ -1627,12 +1722,13 @@ function renderExamTable(){
   if(q)exs=exs.filter(e=>{const s=stu.find(st=>st.id===e.studentId);return s&&(s.name.toLowerCase().includes(q.toLowerCase())||s.roll.toLowerCase().includes(q.toLowerCase()));});
   if(!exs.length){el.innerHTML=`<div class="empty"><p>No records</p></div>`;return;}
   const mentorTh=isOwnerAll?'<th style="color:var(--acc2)">Mentor</th>':'';
-  el.innerHTML=`<table><thead><tr><th>#</th><th>Student</th><th>Roll</th><th>Exam</th><th>Type</th><th>Date</th><th style="color:var(--bio)">BIO</th><th style="color:var(--chm)">CHM</th><th style="color:var(--phy)">PHY</th><th style="color:var(--mth)">MTH</th><th>Total</th><th>%</th><th>Grade</th>${mentorTh}<th>Actions</th></tr></thead><tbody>
+  el.innerHTML=`<table><thead><tr><th>#</th><th>Student</th><th>Roll</th><th>Exam</th><th>Type</th><th>Date</th><th style="color:var(--bio)">BIO</th><th style="color:var(--chm)">CHM</th><th style="color:var(--phy)">PHY</th><th style="color:var(--mth)">MTH</th><th>Total</th><th>%</th><th>Grade</th>${mentorTh}<th>Q</th><th>Actions</th></tr></thead><tbody>
     ${exs.map((e,i)=>{const s=stu.find(st=>st.id===e.studentId);const total4=getExamTotalScored(e);const max4=getExamTotalMax(e);const p=max4>0?pct(total4,max4):null;const g2=p!=null?grd(p):{g:'—',c:'var(--t3)'};
       const mentorTd=isOwnerAll?`<td style="font-size:10px;color:var(--acc2);font-weight:600">${e._mentorName||'—'}</td>`:'';
       return`<tr><td style="color:var(--t4)">${i+1}</td><td>${s?s.name:'?'}</td><td style="color:var(--t2)">${s?s.roll:'—'}</td><td style="font-family:'JetBrains Mono',monospace;font-weight:600">${e.examName}</td><td><span class="badge b-${e.type.toLowerCase()}">${e.type}</span></td><td style="color:var(--t2)">${e.date||'—'}</td>
         ${SUBJ.map(subj=>{const t=getSubjTotal(e,subj);return`<td class="tc" style="color:${SUBJ_C[subj]}">${e.marks[subj]!=null?e.marks[subj]+'/'+t:'—'}</td>`;}).join('')}
         <td class="tc">${max4>0?total4+'/'+max4:'—'}</td><td class="tc" style="color:${g2.c}">${p!=null?p+'%':'—'}</td><td><span style="color:${g2.c};font-weight:800;font-family:'JetBrains Mono',monospace">${g2.g}</span></td>${mentorTd}
+        <td class="tc">${e.qdata?'<i class="fa-solid fa-crosshairs" style="color:var(--acc2);font-size:11px" title="Has Q data"></i>':'<span style="color:var(--t4);font-size:9px">—</span>'}</td>
         <td style="display:flex;gap:4px">${isOwnerAll?'<span style="font-size:10px;color:var(--t3)">—</span>':`<button class="btn btn-edit btn-xs" onclick="openEditExam('${e.id}')"><i class="fa-solid fa-pen"></i></button><button class="btn btn-d btn-xs" onclick="delExam('${e.id}')"><i class="fa-solid fa-trash"></i></button>`}</td></tr>`;
     }).join('')}
   </tbody></table>`;
@@ -1650,7 +1746,7 @@ function renderAnalysis(){
   const rank=allStudentAvgs.findIndex(x=>x.id===sid)+1;const totalRanked=allStudentAvgs.length;
   el.innerHTML=`
   <div class="stat-row">
-    ${SUBJ.map(subj=>{const st=ss[subj];return`<div class="stat ${subj}"><div class="stat-v" style="color:${SUBJ_C[subj]}">${st?st.wAvg+'%':'—'}</div><div class="stat-l">${SUBJ_N[subj]}</div><div class="stat-sub">${st?`Best: ${st.best}% · Worst: ${st.worst}%`:'No data'}</div></div>`;}).join('')}
+    ${SUBJ.map(subj=>{const st=ss[subj];return`<div class="stat ${SUBJ_CSS[subj]}"><div class="stat-v" style="color:${SUBJ_C[subj]}">${st?st.wAvg+'%':'—'}</div><div class="stat-l">${SUBJ_N[subj]}</div><div class="stat-sub">${st?`Best: ${st.best}% · Worst: ${st.worst}%`:'No data'}</div></div>`;}).join('')}
     <div class="stat acc"><div class="stat-v" style="color:${gr.c}">${ovrAvg}%</div><div class="stat-l">Overall</div><div class="stat-sub">Grade ${gr.g}</div></div>
     <div class="stat acc2"><div class="stat-v">${rank?rank+'/'+totalRanked:'—'}</div><div class="stat-l">Batch Rank</div><div class="stat-sub">${ecounts.mt} MT · ${ecounts.we} WE</div></div>
   </div>
@@ -1668,7 +1764,7 @@ function renderAnalysis(){
   </div>
   <div class="card">
     <div class="card-title">Full Exam History</div>
-    <div class="tw"><table><thead><tr><th>Exam</th><th>Type</th><th>Date</th><th style="color:var(--bio)">BIO</th><th style="color:var(--chm)">CHM</th><th style="color:var(--phy)">PHY</th><th style="color:var(--mth)">MTH</th><th>%</th><th>Grade</th></tr></thead><tbody id="aHistTbl"></tbody></table></div>
+    <div class="tw"><table><thead><tr><th>Exam</th><th>Type</th><th>Date</th><th style="color:var(--bio)">BIO</th><th style="color:var(--chm)">CHM</th><th style="color:var(--phy)">PHY</th><th style="color:var(--mth)">MTH</th><th>Total</th><th>%</th><th>Grade</th><th>Q</th></tr></thead><tbody id="aHistTbl"></tbody></table></div>
   </div>`;
   setTimeout(()=>{
     const co=getChartCo();const lc=document.getElementById('aLineC');
@@ -1678,7 +1774,7 @@ function renderAnalysis(){
     const wcEl=document.getElementById('aWComp');if(wcEl){wcEl.innerHTML=`<table style="width:100%;font-size:12px"><thead><tr><th>Subject</th><th>Simple</th><th>Weighted</th><th>Diff</th></tr></thead><tbody>${SUBJ.map(subj=>{const st=ss[subj];if(!st)return`<tr><td style="color:${SUBJ_C[subj]}">${SUBJ_N[subj]}</td><td colspan="3" style="color:var(--t3)">No data</td></tr>`;const diff=st.wAvg-st.avg;const dc=diff>0?'var(--acc3)':diff<0?'var(--acc5)':'var(--t2)';return`<tr><td style="color:${SUBJ_C[subj]}">${SUBJ_N[subj]}</td><td class="tc">${st.avg}%</td><td class="tc" style="font-weight:700">${st.wAvg}%</td><td class="tc" style="color:${dc}">${diff>=0?'+':''}${diff}%</td></tr>`;}).join('')}</tbody></table><div style="font-size:10px;color:var(--t3);margin-top:10px">Weighted avg gives more weight to recent exams.</div>`;}
     const momEl=document.getElementById('aMomentum');if(momEl){momEl.innerHTML=SUBJ.map(subj=>{const st=ss[subj];if(!st||st.count<2)return`<div style="padding:8px 0;font-size:12px;color:var(--t3)">${SUBJ_N[subj]}: Not enough data</div>`;const mc=st.momentum>5?'var(--acc3)':st.momentum<-5?'var(--acc5)':'var(--t2)';const ml=st.momentum>5?'Improving':st.momentum<-5?'Declining':'Stable';return`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--bdr)"><span style="font-size:12px;color:${SUBJ_C[subj]}">${SUBJ_N[subj]}</span><span style="font-size:11px;color:var(--t2)">Recent: ${Math.round(avg(ss[subj].vals.slice(-3).map(v=>v.p)))}%</span><span style="color:${mc};font-size:11px;font-weight:700">${ml} (${st.momentum>=0?'+':''}${Math.round(st.momentum)}%)</span></div>`;}).join('');}
     const mnEl=document.getElementById('aMentorNotes');if(mnEl){const notes=[];SUBJ.forEach(subj=>{const t=computeTarget(exams,subj);if(t)notes.push(`<div class="note-box" style="margin-bottom:8px;border-left-color:${SUBJ_C[subj]}"><strong style="color:${SUBJ_C[subj]}">${SUBJ_N[subj]}:</strong> ${t.insight} <span class="risk ${t.priority==='HIGH'?'risk-hi':t.priority==='MED'?'risk-md':'risk-lo'}" style="margin-left:8px">${t.priority}</span></div>`);});mnEl.innerHTML=notes.join('')||`<div style="color:var(--t3);font-size:12px">Not enough data</div>`;}
-    const htEl=document.getElementById('aHistTbl');if(htEl){htEl.innerHTML=exams.slice().reverse().map(e=>{const p=getExamOverallPct(e);const g2=p!=null?grd(p):{g:'—',c:'var(--t3)'};return`<tr><td style="font-family:'JetBrains Mono',monospace;font-weight:600">${e.examName}</td><td><span class="badge b-${e.type.toLowerCase()}">${e.type}</span></td><td style="color:var(--t2)">${e.date||'—'}</td>${SUBJ.map(subj=>{const sp=getSubjPct(e,subj);const t=getSubjTotal(e,subj);return`<td class="tc ${scoreClass(sp)}">${e.marks[subj]!=null?e.marks[subj]+'/'+t:'—'}</td>`;}).join('')}<td class="tc" style="color:${g2.c};font-weight:700">${p!=null?p+'%':'—'}</td><td><span style="color:${g2.c};font-weight:800;font-family:'JetBrains Mono',monospace">${g2.g}</span></td></tr>`;}).join('');}
+    const htEl=document.getElementById('aHistTbl');if(htEl){htEl.innerHTML=exams.slice().reverse().map(e=>{const p=getExamOverallPct(e);const g2=p!=null?grd(p):{g:'—',c:'var(--t3)'};return`<tr><td style="font-family:'JetBrains Mono',monospace;font-weight:600">${e.examName}</td><td><span class="badge b-${e.type.toLowerCase()}">${e.type}</span></td><td style="color:var(--t2)">${e.date||'—'}</td>${SUBJ.map(subj=>{const sp=getSubjPct(e,subj);const t=getSubjTotal(e,subj);return`<td class="tc ${scoreClass(sp)}">${e.marks[subj]!=null?e.marks[subj]+'/'+t:'—'}</td>`;}).join('')}<td class="tc" style="font-family:'JetBrains Mono',monospace;font-weight:700">${getExamTotalScored(e)}/${getExamTotalMax(e)}</td><td class="tc" style="color:${g2.c};font-weight:700">${p!=null?p+'%':'—'}</td><td><span style="color:${g2.c};font-weight:800;font-family:'JetBrains Mono',monospace">${g2.g}</span></td><td>${e.qdata?`<button class="btn btn-g btn-xs" onclick="nav('qanalysis',null);setTimeout(()=>{document.getElementById('qaStu').value='${sid}';qaLoadExams();setTimeout(()=>{document.getElementById('qaExam').value='${e.id}';renderQAnalysis()},100)},100)"><i class="fa-solid fa-crosshairs"></i></button>`:'<span style="color:var(--t4);font-size:10px">—</span>'}</td></tr>`;}).join('');}
   },80);
 }
 
@@ -1918,6 +2014,326 @@ function exportData(){
   const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download=`CRISPR_Export_${new Date().toISOString().split('T')[0]}.csv`;a.click();toast('Exported to CSV');
 }
 
+
+// ══════════════════════════════════════════════════════════════════
+//  QUESTION-WISE ANALYTICS
+//  qdata: array of 60 values: 4=correct, -1=wrong, 0=unattempted,
+//         'C'=cancelled (don't count toward total/score),
+//         'N'=not in exam (exam had fewer questions)
+//
+//  Subject boundaries (default): BIO Q1-15, CHM Q16-30, PHY Q31-45, MATHS Q46-60
+//  Stored per exam as: exam.qdata = [...], exam.qbounds = {BIO:15,CHM:15,PHY:15,MATHS:15}
+// ══════════════════════════════════════════════════════════════════
+
+function qParseCell(v){
+  const s=String(v||'').trim().toUpperCase();
+  if(s==='C')return 'C';
+  if(s==='N')return 'N';
+  const n=Number(s);
+  if(n===4)return 4;
+  if(n===-1)return -1;
+  if(n===0)return 0;
+  return null;
+}
+
+function qGetBounds(exam){
+  if(exam&&exam.qbounds)return exam.qbounds;
+  return {BIO:15,CHM:15,PHY:15,MATHS:15};
+}
+
+// Returns subject ranges as {BIO:[0,14], CHM:[15,29], ...} (0-indexed)
+function qGetRanges(bounds){
+  const ranges={};let pos=0;
+  ['BIO','CHM','PHY','MATHS'].forEach(subj=>{
+    const n=bounds[subj]||15;
+    ranges[subj]=[pos,pos+n-1];
+    pos+=n;
+  });
+  return ranges;
+}
+
+// Compute analytics from qdata array
+function qCompute(qdata,bounds){
+  if(!qdata||!qdata.length)return null;
+  const totalQ=qdata.length;
+  const ranges=qGetRanges(bounds);
+
+  function stats(slice){
+    let correct=0,wrong=0,unattempted=0,cancelled=0,notIncluded=0;
+    slice.forEach(v=>{
+      if(v==='N')notIncluded++;
+      else if(v==='C')cancelled++;
+      else if(v===4)correct++;
+      else if(v===-1)wrong++;
+      else unattempted++;
+    });
+    const valid=slice.length-notIncluded-cancelled;
+    const attempted=correct+wrong;
+    const score=correct*4+wrong*(-1);
+    const maxScore=valid*4;
+    const strikeRate=attempted>0?Math.round(correct/attempted*100):null;
+    const accuracy=attempted>0?Math.round(correct/attempted*100):null; // same as strike rate
+    const scoreRate=maxScore>0?Math.round((score/maxScore)*100):null;
+    return{correct,wrong,unattempted,cancelled,notIncluded,valid,attempted,score,maxScore,strikeRate,accuracy,scoreRate,total:slice.length};
+  }
+
+  const overall=stats(qdata);
+  const bySubj={};
+  ['BIO','CHM','PHY','MATHS'].forEach(subj=>{
+    const [s,e]=ranges[subj];
+    bySubj[subj]=stats(qdata.slice(s,e+1));
+  });
+  return{overall,bySubj,ranges,qdata};
+}
+
+// Populate exam select from student exams that have qdata
+function qaLoadExams(){
+  const sid=document.getElementById('qaStu').value;
+  const sel=document.getElementById('qaExam');
+  if(!sid){sel.innerHTML='<option value="">— Select Exam —</option>';document.getElementById('qaContent').innerHTML='<div class="empty"><div class="empty-ic"><i class="fa-solid fa-crosshairs"></i></div><p>Select a student and exam</p></div>';return;}
+  const exams=DB.e.filter(e=>e.studentId===sid).sort((a,b)=>{
+    const ta=a.examName.split(' ')[0],na=parseInt(a.examName.split(' ')[1]||0);
+    const tb=b.examName.split(' ')[0],nb=parseInt(b.examName.split(' ')[1]||0);
+    if(ta!==tb)return ta.localeCompare(tb);return na-nb;
+  });
+  sel.innerHTML='<option value="">— Select Exam —</option>'+exams.map(e=>`<option value="${e.id}">${e.examName}${e.qdata?' [Q]':''}</option>`).join('');
+  document.getElementById('qaContent').innerHTML='<div class="empty"><div class="empty-ic"><i class="fa-solid fa-crosshairs"></i></div><p>Select an exam to view analysis</p></div>';
+}
+
+function renderQAnalysis(){
+  const sid=document.getElementById('qaStu').value;
+  const eid=document.getElementById('qaExam').value;
+  const el=document.getElementById('qaContent');
+  if(!sid||!eid){el.innerHTML='<div class="empty"><div class="empty-ic"><i class="fa-solid fa-crosshairs"></i></div><p>Select a student and exam</p></div>';return;}
+  const exam=DB.e.find(e=>e.id===eid);
+  if(!exam){el.innerHTML='<div class="empty"><p>Exam not found</p></div>';return;}
+  if(!exam.qdata||!exam.qdata.length){
+    el.innerHTML=`<div class="empty"><div class="empty-ic"><i class="fa-solid fa-crosshairs"></i></div><p>No question data for ${exam.examName}. Use <strong>Bulk Q Entry</strong> to add it.</p>
+    <button class="btn btn-bulk btn-sm" style="margin-top:12px" onclick="openQBulk()"><i class="fa-solid fa-upload"></i> Add Q Data</button></div>`;
+    return;
+  }
+  const stu=DB.s.find(s=>s.id===sid);
+  const bounds=qGetBounds(exam);
+  const qr=qCompute(exam.qdata,bounds);
+  if(!qr){el.innerHTML='<div class="empty"><p>Could not compute analytics</p></div>';return;}
+
+  function ring(pct,color,label,val){
+    const r=34,c=2*Math.PI*r,dash=pct!=null?c*(pct/100):0;
+    return`<div class="sr-ring"><svg viewBox="0 0 80 80" width="80" height="80"><circle cx="40" cy="40" r="${r}" fill="none" stroke="var(--s4)" stroke-width="7"/><circle cx="40" cy="40" r="${r}" fill="none" stroke="${color}" stroke-width="7" stroke-dasharray="${dash.toFixed(1)} ${c.toFixed(1)}" stroke-linecap="round"/></svg><div class="sr-val" style="color:${color}">${val!=null?val+'%':'—'}</div><div class="sr-lbl">${label}</div></div>`;
+  }
+
+  function qLabel(v){
+    if(v===4)return'<span class="qa-cell qa-c" title="Correct">+4</span>';
+    if(v===-1)return'<span class="qa-cell qa-w" title="Wrong">-1</span>';
+    if(v===0)return'<span class="qa-cell qa-u" title="Unattempted">0</span>';
+    if(v==='C')return'<span class="qa-cell qa-x" title="Cancelled">C</span>';
+    if(v==='N')return'<span class="qa-cell qa-n" title="Not in exam">N</span>';
+    return'<span class="qa-cell qa-u">?</span>';
+  }
+
+  const o=qr.overall;
+  const ranges=qr.ranges;
+
+  // Build qdata grid with subject labels
+  let gridHtml='';
+  ['BIO','CHM','PHY','MATHS'].forEach(subj=>{
+    const [s,e]=ranges[subj];
+    const slice=exam.qdata.slice(s,e+1);
+    // Skip if all N
+    if(slice.every(v=>v==='N'))return;
+    const bs=qr.bySubj[subj];
+    gridHtml+=`<div style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <span style="font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--${SUBJ_CSS[subj]});width:50px">${subj}</span>
+        <span style="font-size:10px;color:var(--t3)">Q${s+1}–Q${e+1}</span>
+        <span style="font-size:10px;color:var(--acc3);margin-left:auto">SR: ${bs.strikeRate!=null?bs.strikeRate+'%':'—'}</span>
+        <span style="font-size:11px;font-weight:700;color:var(--t1);font-family:'JetBrains Mono',monospace">${bs.score}/${bs.maxScore}</span>
+      </div>
+      <div class="qa-grid">${slice.map(qLabel).join('')}</div>
+    </div>`;
+  });
+
+  // Trend across exams for this student
+  const allExams=DB.e.filter(e=>e.studentId===sid&&e.qdata&&e.qdata.length).sort((a,b)=>{
+    const ta=a.examName.split(' ')[0],na=parseInt(a.examName.split(' ')[1]||0);
+    const tb=b.examName.split(' ')[0],nb=parseInt(b.examName.split(' ')[1]||0);
+    if(ta!==tb)return ta.localeCompare(tb);return na-nb;
+  });
+
+  const trendRows=allExams.length>1?`<div class="card" style="margin-top:16px"><div class="card-title">Strike Rate Trend (All Q-Exams)</div>
+    <div class="tw"><table><thead><tr><th>Exam</th><th>Attempted</th><th>Correct</th><th>Wrong</th><th>Score</th><th style="color:var(--acc3)">Strike Rate</th>${['BIO','CHM','PHY','MATHS'].map(s=>`<th style="color:var(--${SUBJ_CSS[s]})">${s} SR</th>`).join('')}</tr></thead><tbody>
+    ${allExams.map(ex=>{const b2=qGetBounds(ex);const qr2=qCompute(ex.qdata,b2);if(!qr2)return'';const o2=qr2.overall;const srC=o2.strikeRate!=null?(o2.strikeRate>=70?'var(--acc3)':o2.strikeRate>=50?'var(--mt)':'var(--acc5)'):'var(--t3)';
+      return`<tr><td style="font-family:'JetBrains Mono',monospace;font-weight:600">${ex.examName}</td><td class="tc">${o2.attempted}</td><td class="tc" style="color:var(--acc3)">${o2.correct}</td><td class="tc" style="color:var(--acc5)">${o2.wrong}</td><td class="tc" style="font-weight:700">${o2.score}/${o2.maxScore}</td><td class="tc" style="color:${srC};font-weight:700">${o2.strikeRate!=null?o2.strikeRate+'%':'—'}</td>${['BIO','CHM','PHY','MATHS'].map(subj=>{const bs2=qr2.bySubj[subj];const srC2=bs2.strikeRate!=null?(bs2.strikeRate>=70?'var(--acc3)':bs2.strikeRate>=50?'var(--mt)':'var(--acc5)'):'var(--t3)';return`<td class="tc" style="color:${srC2}">${bs2.strikeRate!=null?bs2.strikeRate+'%':'—'}</td>`;}).join('')}</tr>`;
+    }).join('')}
+    </tbody></table></div></div>`:'';
+
+  const srC=o.strikeRate!=null?(o.strikeRate>=70?'#4ade80':o.strikeRate>=50?'#fbbf24':'#f87171'):'var(--t3)';
+  const scC=o.scoreRate!=null?(o.scoreRate>=70?'#4ade80':o.scoreRate>=50?'#fbbf24':'#f87171'):'var(--t3)';
+
+  el.innerHTML=`
+  <div class="card" style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px">
+      <div>
+        <div style="font-size:16px;font-weight:800">${stu?stu.name:'?'} &mdash; ${exam.examName}</div>
+        <div style="font-size:11px;color:var(--t2)">${exam.date||''} &nbsp; ${o.valid} active questions &nbsp;·&nbsp; ${o.cancelled} cancelled &nbsp;·&nbsp; ${o.notIncluded} not in exam</div>
+      </div>
+      <button class="btn btn-bulk btn-sm" onclick="openQBulkEdit('${exam.id}')"><i class="fa-solid fa-pen"></i> Edit Q Data</button>
+    </div>
+    <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
+      ${ring(o.strikeRate,srC,'Strike Rate',o.strikeRate)}
+      ${ring(o.scoreRate,scC,'Score Rate',o.scoreRate)}
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;flex:1;min-width:200px">
+        <div class="card-sm"><div style="font-size:22px;font-weight:800;color:var(--acc3);font-family:'JetBrains Mono',monospace">${o.correct}</div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--t3)">Correct (+${o.correct*4})</div></div>
+        <div class="card-sm"><div style="font-size:22px;font-weight:800;color:var(--acc5);font-family:'JetBrains Mono',monospace">${o.wrong}</div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--t3)">Wrong (${o.wrong*-1})</div></div>
+        <div class="card-sm"><div style="font-size:22px;font-weight:800;color:var(--t3);font-family:'JetBrains Mono',monospace">${o.unattempted}</div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--t3)">Skipped</div></div>
+        <div class="card-sm"><div style="font-size:22px;font-weight:800;color:var(--acc);font-family:'JetBrains Mono',monospace">${o.score}<span style="font-size:13px;color:var(--t3)">/${o.maxScore}</span></div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--t3)">Score</div></div>
+      </div>
+    </div>
+    <!-- Subject-wise strike rates -->
+    <div class="subj-sr-row">
+      ${['BIO','CHM','PHY','MATHS'].map(subj=>{
+        const bs=qr.bySubj[subj];if(bs.notIncluded===bs.total)return'';
+        const srC2=bs.strikeRate!=null?(bs.strikeRate>=70?'var(--acc3)':bs.strikeRate>=50?'var(--mt)':'var(--acc5)'):'var(--t3)';
+        return`<div class="subj-sr-card" style="border-top:2px solid var(--${SUBJ_CSS[subj]})">
+          <div style="font-size:9px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--${SUBJ_CSS[subj]})">${subj}</div>
+          <div style="font-size:20px;font-weight:900;color:${srC2};font-family:'JetBrains Mono',monospace">${bs.strikeRate!=null?bs.strikeRate+'%':'—'}</div>
+          <div style="font-size:10px;color:var(--t3)">Strike Rate</div>
+          <div style="font-size:10px;color:var(--t3);margin-top:4px">${bs.correct}C · ${bs.wrong}W · ${bs.unattempted}S · Score: ${bs.score}/${bs.maxScore}</div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Question Map <span style="font-size:10px;color:var(--t3)">&nbsp; <span class="qa-cell qa-c" style="display:inline-flex;padding:2px 6px">+4</span>=correct &nbsp; <span class="qa-cell qa-w" style="display:inline-flex;padding:2px 6px">-1</span>=wrong &nbsp; <span class="qa-cell qa-u" style="display:inline-flex;padding:2px 6px">0</span>=skip &nbsp; <span class="qa-cell qa-x" style="display:inline-flex;padding:2px 6px">C</span>=cancelled &nbsp; <span class="qa-cell qa-n" style="display:inline-flex;padding:2px 6px">N</span>=not in exam</span></div>
+    ${gridHtml}
+  </div>
+  ${trendRows}`;
+}
+
+// ── Q Bulk Entry ──
+let _qBulkParsed=[];
+
+function openQBulk(){
+  const mo=document.getElementById('moQBulk');
+  if(!mo)return;
+  // Populate mentor selector for owner/DE
+  const mentorRow=document.getElementById('qBulkMentorRow');
+  if(window._isOwner||window._isDataEntry){
+    mentorRow.style.display='block';
+    const sel=document.getElementById('qBulkMentorSel');
+    if(sel&&window._FB&&window._FB.MENTOR_NAMES){
+      sel.innerHTML=Object.entries(window._FB.MENTOR_NAMES).map(([uid,name])=>`<option value="${uid}">${name}</option>`).join('');
+      if(window._viewingUID&&window._FB.MENTOR_NAMES[window._viewingUID])sel.value=window._viewingUID;
+    }
+    qBulkLoadStudents();
+  }else{mentorRow.style.display='none';qBulkLoadStudents();}
+  qUpdateBoundLabels();
+  mo.style.display='flex';
+}
+
+function openQBulkEdit(examId){
+  openQBulk();
+  // Pre-fill exam selector if applicable
+  setTimeout(()=>{
+    const sel=document.getElementById('qBulkExam');
+    if(sel){const opts=Array.from(sel.options);const match=opts.find(o=>o.value===examId);if(match)sel.value=examId;}
+  },100);
+}
+
+function closeMoQBulk(){document.getElementById('moQBulk').style.display='none';}
+
+function qBulkLoadStudents(){
+  const sel=document.getElementById('qBulkExam');
+  const mentorSel=document.getElementById('qBulkMentorSel');
+  const targetUID=(window._isOwner||window._isDataEntry)&&mentorSel?mentorSel.value:window._viewingUID;
+  // Get students for that mentor
+  const stuList=(window._isOwner||window._isDataEntry)&&window._ownerViewAll
+    ? DB.s.filter(s=>!targetUID||(s._mentorUid===targetUID))
+    : DB.s;
+  // Get exams for those students
+  const stuIds=new Set(stuList.map(s=>s.id));
+  const exams=DB.e.filter(e=>stuIds.has(e.studentId));
+  const allExams=[...exams].sort((a,b)=>{const ta=a.examName.split(' ')[0],na=parseInt(a.examName.split(' ')[1]||0);const tb=b.examName.split(' ')[0],nb=parseInt(b.examName.split(' ')[1]||0);if(ta!==tb)return ta.localeCompare(tb);return na-nb;});
+  const uniqueExamNames=[...new Set(allExams.map(e=>e.examName))];
+  if(sel){sel.innerHTML='<option value="">— Select Exam —</option>'+uniqueExamNames.map(n=>`<option value="${n}">${n}</option>`).join('');}
+}
+
+function qUpdateBoundLabels(){
+  const b=parseInt(document.getElementById('qBioBound').value)||15;
+  const c=parseInt(document.getElementById('qChmBound').value)||15;
+  const p=parseInt(document.getElementById('qPhyBound').value)||15;
+  const m=parseInt(document.getElementById('qMthBound').value)||15;
+  const r1=1,r2=b,r3=b+1,r4=b+c,r5=b+c+1,r6=b+c+p,r7=b+c+p+1,r8=b+c+p+m;
+  document.getElementById('qBoundLabel').textContent=`BIO: Q${r1}–Q${r2}, CHM: Q${r3}–Q${r4}, PHY: Q${r5}–Q${r6}, MATHS: Q${r7}–Q${r8} (Total: ${r8} Qs)`;
+}
+
+function parseQBulk(){
+  const raw=document.getElementById('qBulkText').value.trim();
+  const examName=document.getElementById('qBulkExam').value;
+  if(!examName){toast('Select an exam first','er');return;}
+  if(!raw){toast('Paste question data','wa');return;}
+  const bounds={
+    BIO:parseInt(document.getElementById('qBioBound').value)||15,
+    CHM:parseInt(document.getElementById('qChmBound').value)||15,
+    PHY:parseInt(document.getElementById('qPhyBound').value)||15,
+    MATHS:parseInt(document.getElementById('qMthBound').value)||15
+  };
+  const totalQ=bounds.BIO+bounds.CHM+bounds.PHY+bounds.MATHS;
+  const mentorSel=document.getElementById('qBulkMentorSel');
+  const targetUID=(window._isOwner||window._isDataEntry)&&mentorSel?mentorSel.value:window._viewingUID;
+  const stuList=(window._isOwner||window._isDataEntry)&&window._ownerViewAll
+    ? DB.s.filter(s=>!targetUID||(s._mentorUid===targetUID))
+    : DB.s;
+  const stuIds=new Set(stuList.map(s=>s.id));
+  const exams=DB.e.filter(e=>stuIds.has(e.studentId)&&e.examName===examName);
+  const lines=raw.split('\n').map(l=>l.trim()).filter(Boolean);
+  _qBulkParsed=[];let html='';
+  lines.forEach((line,i)=>{
+    const parts=line.split(',').map(p=>p.trim());
+    const roll=parts[0];
+    const stu=stuList.find(s=>s.roll.toLowerCase()===roll.toLowerCase());
+    if(!stu){html+=`<div class="bulk-preview-row er"><div class="bulk-row-num">${i+1}</div><span>Roll ${roll} not found</span></div>`;return;}
+    const exam=exams.find(e=>e.studentId===stu.id);
+    if(!exam){html+=`<div class="bulk-preview-row er"><div class="bulk-row-num">${i+1}</div><span>${stu.name}: no ${examName} record found</span></div>`;return;}
+    const vals=parts.slice(1).map(qParseCell);
+    const invalids=vals.filter(v=>v===null);
+    if(invalids.length){html+=`<div class="bulk-preview-row er"><div class="bulk-row-num">${i+1}</div><span>${stu.name}: invalid value(s)</span></div>`;return;}
+    // Pad to totalQ with N if fewer provided
+    while(vals.length<totalQ)vals.push('N');
+    const trimmed=vals.slice(0,totalQ);
+    const qr2=qCompute(trimmed,bounds);const o2=qr2?qr2.overall:null;
+    _qBulkParsed.push({examId:exam.id,qdata:trimmed,bounds,studentName:stu.name,roll});
+    const srC=o2&&o2.strikeRate!=null?(o2.strikeRate>=70?'var(--acc3)':o2.strikeRate>=50?'var(--mt)':'var(--acc5)'):'var(--t3)';
+    html+=`<div class="bulk-preview-row ok"><div class="bulk-row-num">${i+1}</div><span style="color:var(--acc3)">&#10003;</span><span style="flex:1"><strong>${roll}</strong> ${stu.name} &mdash; ${o2?`Score: ${o2.score}/${o2.maxScore} &nbsp; SR: <strong style="color:${srC}">${o2.strikeRate!=null?o2.strikeRate+'%':'—'}</strong> &nbsp; ${o2.correct}C ${o2.wrong}W ${o2.unattempted}S`:'ok'}</span></div>`;
+  });
+  document.getElementById('qBulkPreview').innerHTML=html||'<div style="color:var(--t3);font-size:12px;padding:8px">Nothing parsed</div>';
+  const saveBtn=document.getElementById('btnQBulkSave');
+  saveBtn.style.display=_qBulkParsed.length?'inline-flex':'none';
+  saveBtn.textContent=`Save ${_qBulkParsed.length} Q Record${_qBulkParsed.length!==1?'s':''}`;
+}
+
+async function saveQBulk(){
+  if(!_qBulkParsed.length){toast('Nothing to save','wa');return;}
+  let saved=0;
+  for(const rec of _qBulkParsed){
+    const exam=DB.e.find(e=>e.id===rec.examId);
+    if(!exam)continue;
+    const updated={...exam,qdata:rec.qdata,qbounds:rec.bounds};
+    window._DB_E=window._DB_E.map(e=>e.id===rec.examId?updated:e);
+    if(window._saveExam)await window._saveExam(updated);
+    saved++;
+  }
+  toast(`${saved} Q records saved`);
+  _qBulkParsed=[];
+  document.getElementById('qBulkText').value='';
+  document.getElementById('qBulkPreview').innerHTML='';
+  document.getElementById('btnQBulkSave').style.display='none';
+  closeMoQBulk();
+  if(document.getElementById('qaStu').value){qaLoadExams();setTimeout(renderQAnalysis,200);}
+}
+
+// Populate Q Analysis student selector when nav'd to
+
 // INIT
 document.getElementById('eDate').value=new Date().toISOString().split('T')[0];
 </script>
@@ -2039,11 +2455,12 @@ window.deNav = function(page, el){
   // If no button element passed, find the correct nav button by ID
   const navBtn = el || deG('de-nav-'+page);
   if(navBtn) navBtn.classList.add('active');
-  const t={'de-students':'Students','de-exams':'Exam Entry','de-bulk':'Bulk Entry'};
+  const t={'de-students':'Students','de-exams':'Exam Entry','de-bulk':'Bulk Entry','de-qanalysis':'Q Entry'};
   deG('deTopbarTitle').innerHTML=`<span>${t[page]||page}</span>`;
   if(page==='de-students') deRenderStudents();
   if(page==='de-exams'){ dePopSelects(); deRenderExamTable(); deRenderRecentEntries(); }
   if(page==='de-bulk'){ deSwitchBulkTab('students'); }
+  if(page==='de-qanalysis'){ dePopSelects(); const opts='<option value="">— Select —</option>'+(window._DB_S||[]).map(s=>`<option value="${s.id}">${s.roll} – ${s.name}</option>`).join(''); const deQAEl=deG('deQAStu'); if(deQAEl){deQAEl.innerHTML=opts;} }
 };
 
 // ── DE Refresh ──
@@ -2080,7 +2497,7 @@ function deRenderStudents(){
     const ps=se.map(e=>getExamOverallPct(e)).filter(v=>v!=null);
     const avgP=ps.length?Math.round(avg(ps)):null;
     const g=avgP!=null?grd(avgP):{g:'—',c:'var(--t3)'};
-    const col = ['#22d3ee','#a78bfa','#fb923c','#4ade80','#4f9eff','#f59e0b'][parseInt(s.roll)||0 % 6];
+    const col = ['#22d3ee','#a78bfa','#fb923c','#4ade80','#4f9eff','#f59e0b'][(parseInt(s.roll)||0) % 6];
     return `<div class="sc">
       <div class="sc-hd">
         <div class="sc-av" style="background:${col}33;color:${col};border:1px solid ${col}44">${s.name.charAt(0).toUpperCase()}</div>
@@ -2094,7 +2511,7 @@ function deRenderStudents(){
         </div>
       </div>
       <div class="sc-sj">
-        ${['bio','chm','phy','mth'].map((subj,i)=>{const SUBJ_MAP={bio:'BIO',chm:'CHM',phy:'PHY',mth:'MATHS'};const sv=exams.filter(e=>e.marks&&e.marks[SUBJ_MAP[subj]]!=null).map(e=>getSubjPct(e,SUBJ_MAP[subj]));const sa=sv.length?Math.round(avg(sv)):null;return`<div class="sc-sj-i"><div class="sc-sj-v" style="color:var(--${subj})">${sa!=null?sa+'%':'—'}</div><div class="sc-sj-l">${SUBJ_MAP[subj]}</div></div>`;}).join('')}
+        ${['BIO','CHM','PHY','MATHS'].map((subj,i)=>{const SUBJ_MAP={BIO:'BIO',CHM:'CHM',PHY:'PHY',MATHS:'MATHS'};const sv=exams.filter(e=>e.marks&&e.marks[subj]!=null).map(e=>getSubjPct(e,subj));const sa=sv.length?Math.round(avg(sv)):null;return`<div class="sc-sj-i"><div class="sc-sj-v" style="color:var(--${SUBJ_CSS[subj]})">${sa!=null?sa+'%':'—'}</div><div class="sc-sj-l">${subj}</div></div>`;}).join('')}
       </div>
       <div style="display:flex;gap:6px;margin-top:10px">
         <button class="btn btn-edit btn-xs" style="flex:1" onclick="deOpenEditStudent('${s.id}')"><i class="fa-solid fa-pen"></i> Edit</button>
@@ -2292,7 +2709,7 @@ window.deParseBulkStudents = function(){
     if(!roll||!name){_deBulkParsedStudents.push(null);return`<div class="bulk-preview-row er"><span class="bulk-row-num">${i+1}</span><span>Missing roll or name</span></div>`;}
     const s={id:'s_'+Date.now()+'_'+i,roll,name,batch,phone,note:'',createdAt:new Date().toISOString()};
     _deBulkParsedStudents.push(s);
-    return`<div class="bulk-preview-row ok"><span class="bulk-row-num">${i+1}</span><span><strong>${roll}</strong> — ${name}${batch?' ['+batch+']':''}${phone?' 📞'+phone:''}</span></div>`;
+    return`<div class="bulk-preview-row ok"><span class="bulk-row-num">${i+1}</span><span><strong>${roll}</strong> — ${name}${batch?' ['+batch+']':''}${phone?' <i class="fa-solid fa-phone" style="font-size:9px"></i> '+phone:''}</span></div>`;
   }).join('');
   deG('deBulkStuPreview').innerHTML=preview||'<div style="color:var(--t3);font-size:12px;padding:8px">Nothing to preview.</div>';
   const valid=_deBulkParsedStudents.filter(Boolean).length;
@@ -2361,9 +2778,66 @@ window.deSaveBulkExams = async function(){
   deRefreshUI();
 };
 
+
+// DE Q Analysis nav
+function deQALoadExams(){
+  const sid=document.getElementById('deQAStu').value;
+  const sel=document.getElementById('deQAExam');
+  if(!sid){sel.innerHTML='<option value="">— Select —</option>';return;}
+  const exams=(window._DB_E||[]).filter(e=>e.studentId===sid);
+  sel.innerHTML='<option value="">— Select —</option>'+exams.map(e=>`<option value="${e.id}">${e.examName}${e.qdata?' [Q]':''}</option>`).join('');
+}
+
 // ── DE init ──
 deG('deEDate') && (deG('deEDate').value = new Date().toISOString().split('T')[0]);
 deG('deBulkDate') && (deG('deBulkDate').value = new Date().toISOString().split('T')[0]);
 </script>
+
+<!-- Q Bulk Entry Modal -->
+<div class="mo" id="moQBulk" style="display:none" onclick="if(event.target.id==='moQBulk')closeMoQBulk()">
+  <div class="md" style="max-width:820px">
+    <div class="mh">
+      <h3><i class="fa-solid fa-crosshairs" style="color:var(--acc2);margin-right:8px"></i>Bulk Question Data Entry</h3>
+      <button class="cx" onclick="closeMoQBulk()">&#10005;</button>
+    </div>
+    <div id="qBulkMentorRow" style="display:none;margin-bottom:12px;padding:10px 12px;background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.2);border-radius:var(--r)">
+      <div style="display:flex;align-items:center;gap:10px">
+        <i class="fa-solid fa-user-tie" style="color:var(--acc2);font-size:13px"></i>
+        <label style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--acc2);white-space:nowrap">Mentor</label>
+        <select class="fs" id="qBulkMentorSel" onchange="qBulkLoadStudents()" style="flex:1;font-size:12px"></select>
+      </div>
+    </div>
+    <div class="fr" style="margin-bottom:12px">
+      <div class="fg">
+        <label class="fl">Exam</label>
+        <select class="fs" id="qBulkExam" style="font-size:12px"><option value="">— Select Exam —</option></select>
+      </div>
+      <div class="fg">
+        <label class="fl">Questions per Subject</label>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
+          <div class="sc-f bio"><label style="font-size:9px">BIO</label><input type="number" class="fi" id="qBioBound" value="15" min="1" max="60" oninput="qUpdateBoundLabels()"></div>
+          <div class="sc-f chm"><label style="font-size:9px">CHM</label><input type="number" class="fi" id="qChmBound" value="15" min="1" max="60" oninput="qUpdateBoundLabels()"></div>
+          <div class="sc-f phy"><label style="font-size:9px">PHY</label><input type="number" class="fi" id="qPhyBound" value="15" min="1" max="60" oninput="qUpdateBoundLabels()"></div>
+          <div class="sc-f mth"><label style="font-size:9px">MATHS</label><input type="number" class="fi" id="qMthBound" value="15" min="1" max="60" oninput="qUpdateBoundLabels()"></div>
+        </div>
+        <div id="qBoundLabel" style="font-size:10px;color:var(--t3);margin-top:4px">BIO: Q1–Q15, CHM: Q16–Q30, PHY: Q31–Q45, MATHS: Q46–Q60 (Total: 60 Qs)</div>
+      </div>
+    </div>
+    <div class="alert a-info" style="margin-bottom:10px">
+      <strong>Format:</strong> <code style="font-family:'JetBrains Mono',monospace;font-size:11px">Roll, Q1, Q2, Q3, &hellip; QN</code><br>
+      <strong>4</strong>=correct &nbsp; <strong>-1</strong>=wrong &nbsp; <strong>0</strong>=unattempted &nbsp; <strong>C</strong>=cancelled &nbsp; <strong>N</strong>=not in exam (trailing Qs)<br>
+      <em>For a 40Q exam, questions 41&ndash;60 should be N. Fewer values than total Q count will be padded with N automatically.</em>
+    </div>
+    <div class="fg">
+      <label class="fl">Paste Question Data (one student per line)</label>
+      <textarea class="bulk-textarea" id="qBulkText" placeholder="001, 4, -1, 4, 0, 4, 4, -1, 0, 4, 4, 4, -1, 4, 0, 4, 4, 4, 0, -1, 4, 0, 4, 4, 4, 4, 0, -1, 4, 4, 4, 4, -1, 4, 0, 4, 4, 4, -1, 0, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N, N" style="min-height:150px"></textarea>
+    </div>
+    <div id="qBulkPreview" style="margin-bottom:12px;max-height:220px;overflow-y:auto"></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px">
+      <button class="btn btn-g" onclick="parseQBulk()"><i class="fa-solid fa-eye"></i> Preview</button>
+      <button class="btn btn-p" id="btnQBulkSave" onclick="saveQBulk()" style="display:none"><i class="fa-solid fa-floppy-disk"></i> Save All</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
