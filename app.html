@@ -113,15 +113,61 @@ onAuthStateChanged(auth, async user => {
     document.getElementById('loadingMsg').textContent = 'Loading data entry panel…';
     document.getElementById('deUserName').textContent = 'Data Entry';
     document.getElementById('deUserEmail').textContent = user.email;
+
     // Populate mentor selector
     const deSel = document.getElementById('deMentorSelect');
     deSel.innerHTML = Object.entries(MENTOR_NAMES).map(([uid, name]) =>
       `<option value="${uid}">${name}</option>`
     ).join('');
-    // Load first mentor's data
+
+    // ── Load ALL mentors' students into _xmAllStudents upfront ──
+    // This is the master cache used by Unified Entry for roll-lookup across all mentors.
+    window._xmAllStudents = {};
+    window._xmAllExams    = {};
+
+    // Set up real-time listeners for every mentor so their data stays live
+    // (when DE saves an exam for mentor X, _xmAllExams[X] updates automatically)
+    const deUnsubs = [];
+    for (const [mUID] of Object.entries(MENTOR_NAMES)) {
+      const stuRef2  = collection(db, 'mentors', mUID, 'students');
+      const examRef2 = collection(db, 'mentors', mUID, 'exams');
+
+      const unsubS = onSnapshot(stuRef2, snap => {
+        window._xmAllStudents[mUID] = snap.docs.map(d => d.data());
+        // Refresh DE student grid if currently viewing this mentor
+        if (window._viewingUID === mUID) {
+          window._DB_S = window._xmAllStudents[mUID];
+          if (typeof deRefreshUI === 'function') deRefreshUI();
+        }
+      });
+      const unsubE = onSnapshot(examRef2, snap => {
+        window._xmAllExams[mUID] = snap.docs.map(d => normExam(d.data()));
+        // Refresh DE exam table if currently viewing this mentor
+        if (window._viewingUID === mUID) {
+          window._DB_E = window._xmAllExams[mUID];
+          if (typeof deRefreshUI === 'function') deRefreshUI();
+        }
+      });
+      deUnsubs.push(unsubS, unsubE);
+    }
+    window._unsubscribers = deUnsubs;
+
+    // Initial load — wait for first snapshot of first mentor
     const firstUID = Object.keys(MENTOR_NAMES)[0];
     window._viewingUID = firstUID;
-    await loadUserData(firstUID);
+
+    // Wait for initial data
+    await Promise.all(Object.keys(MENTOR_NAMES).map(async mUID => {
+      const stuSnap2  = await getDocs(collection(db, 'mentors', mUID, 'students'));
+      const examSnap2 = await getDocs(collection(db, 'mentors', mUID, 'exams'));
+      window._xmAllStudents[mUID] = stuSnap2.docs.map(d => d.data());
+      window._xmAllExams[mUID]    = examSnap2.docs.map(d => normExam(d.data()));
+    }));
+
+    // Set active mentor's data into global _DB_S / _DB_E
+    window._DB_S = window._xmAllStudents[firstUID] || [];
+    window._DB_E = window._xmAllExams[firstUID]    || [];
+
     document.getElementById('loadingOverlay').style.display = 'none';
     document.getElementById('appMain').style.display = 'none';
     document.getElementById('deApp').style.display = 'flex';
@@ -201,6 +247,7 @@ function refreshUI() {
 }
 
 // ── Write helpers ──
+// These always use _viewingUID (for mentor's own actions / owner switching)
 window._saveStudent = async function(s) {
   const uid = window._viewingUID;
   await setDoc(doc(db, 'mentors', uid, 'students', s.id), s);
@@ -216,6 +263,21 @@ window._saveExam = async function(e) {
 window._deleteExam = async function(id) {
   const uid = window._viewingUID;
   await deleteDoc(doc(db, 'mentors', uid, 'exams', id));
+};
+
+// ── Direct mentor-targeted write helpers (for data entry — bypass _viewingUID) ──
+// Always writes to the explicit mentorUID path so data appears in that mentor's tab.
+window._saveStudentForMentor = async function(mentorUID, s) {
+  await setDoc(doc(db, 'mentors', mentorUID, 'students', s.id), s);
+};
+window._saveExamForMentor = async function(mentorUID, e) {
+  await setDoc(doc(db, 'mentors', mentorUID, 'exams', e.id), e);
+};
+window._deleteExamForMentor = async function(mentorUID, id) {
+  await deleteDoc(doc(db, 'mentors', mentorUID, 'exams', id));
+};
+window._deleteStudentForMentor = async function(mentorUID, id) {
+  await deleteDoc(doc(db, 'mentors', mentorUID, 'students', id));
 };
 
 // ── Load ALL mentors' data merged into global DB (owner "view all" mode) ──
@@ -990,6 +1052,8 @@ tr:last-child td{border-bottom:none}
       <button class="sb-item" id="de-nav-de-bulk" onclick="deNav('de-bulk',this)"><i class="fa-solid fa-upload"></i>Bulk Entry</button>
       <div class="sb-section">Analytics</div>
       <button class="sb-item" id="de-nav-de-qanalysis" onclick="deNav('de-qanalysis',this)"><i class="fa-solid fa-crosshairs"></i>Q Entry</button>
+      <div class="sb-section" style="display:flex;align-items:center;gap:6px">Cross-Mentor <span style="background:linear-gradient(135deg,var(--acc2),var(--acc));color:#fff;font-size:8px;font-weight:800;padding:1px 5px;border-radius:10px">NEW</span></div>
+      <button class="sb-item" id="de-nav-de-xmentor" onclick="deNav('de-xmentor',this)"><i class="fa-solid fa-layer-group"></i>Unified Entry</button>
     </div>
 
     <div class="sb-footer">
@@ -1156,6 +1220,59 @@ tr:last-child td{border-bottom:none}
         </div>
       </div>
 
+
+      <!-- DE: UNIFIED CROSS-MENTOR ENTRY PAGE -->
+      <div class="page" id="pg-de-xmentor">
+        <div class="ph">
+          <div>
+            <h1><i class="fa-solid fa-layer-group" style="color:var(--acc2);font-size:16px;margin-right:8px"></i>Unified Batch Entry</h1>
+            <p>Set exam config once at the top → paste each mentor's batch data below → Save All in one click</p>
+          </div>
+        </div>
+
+        <!-- ── Exam Config Bar ── -->
+        <div class="card" style="margin-bottom:16px;padding:14px 18px">
+          <div class="card-title" style="margin-bottom:10px"><i class="fa-solid fa-sliders" style="color:var(--acc);margin-right:6px"></i>Exam Configuration — applies to all mentor blocks</div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+            <div class="fg" style="min-width:110px;flex:0">
+              <label class="fl">Exam Type</label>
+              <div class="tt">
+                <button class="tt-btn tt-mt" id="xmTtMT" onclick="xmSetType('MT')">MT</button>
+                <button class="tt-btn" id="xmTtWE" onclick="xmSetType('WE')">WE</button>
+              </div>
+            </div>
+            <div class="fg" style="min-width:100px;flex:0">
+              <label class="fl">Exam Number</label>
+              <div class="ex-num-row">
+                <div class="ex-num-pfx" id="xmNumPfx">MT</div>
+                <input class="fi ex-num-in" type="number" id="xmExamNum" min="1" placeholder="01" oninput="xmUpdateAllHeaders()">
+              </div>
+            </div>
+            <div class="fg" style="min-width:140px;flex:0">
+              <label class="fl">Date</label>
+              <input type="date" class="fi" id="xmExamDate" style="max-width:180px">
+            </div>
+            <div class="sc-f bio" style="flex:0;min-width:70px"><label>BIO /</label><input type="number" class="fi" id="xmGTb" value="60" min="1" oninput="xmSyncAllTotals()"></div>
+            <div class="sc-f chm" style="flex:0;min-width:70px"><label>CHM /</label><input type="number" class="fi" id="xmGTc" value="60" min="1" oninput="xmSyncAllTotals()"></div>
+            <div class="sc-f phy" style="flex:0;min-width:70px"><label>PHY /</label><input type="number" class="fi" id="xmGTp" value="60" min="1" oninput="xmSyncAllTotals()"></div>
+            <div class="sc-f mth" style="flex:0;min-width:70px"><label>MATHS /</label><input type="number" class="fi" id="xmGTm" value="60" min="1" oninput="xmSyncAllTotals()"></div>
+          </div>
+          <div class="alert a-info" style="margin-top:12px;font-size:11px">
+            <strong>Format:</strong> one student per line &mdash; <code style="font-family:'JetBrains Mono',monospace">Roll, BIO, CHM, PHY, MATHS</code>
+            &nbsp;·&nbsp; Leave a subject blank to skip. E.g.: <code style="font-family:'JetBrains Mono',monospace">001, 45, 52, , 55</code>
+          </div>
+        </div>
+
+        <!-- ── Per-mentor blocks ── -->
+        <div id="xmMentorBlocks" style="display:grid;gap:16px"></div>
+
+        <!-- ── Sticky Save All ── -->
+        <div style="position:sticky;bottom:20px;display:flex;justify-content:center;margin-top:16px;z-index:20">
+          <button class="btn btn-p" id="xmSaveAllBtn" onclick="xmSaveAll()" style="display:none;padding:13px 40px;font-size:13px;font-weight:700;letter-spacing:.5px;box-shadow:0 6px 24px rgba(79,158,255,.4)">
+            <i class="fa-solid fa-floppy-disk"></i>&nbsp; <span id="xmSaveAllLabel">Save All</span>
+          </button>
+        </div>
+      </div>
 
       <!-- DE: Q ANALYSIS PAGE -->
       <div class="page" id="pg-de-qanalysis">
@@ -2453,13 +2570,14 @@ function deUpdateSBCount(){
 function closeMoDE(id){ deG(id).style.display='none'; }
 
 // ── DE Switch Mentor ──
+// Switches the "currently viewing" mentor for the DE single-entry forms.
+// Does NOT re-fetch — uses the live cache built at login.
 window.deSwitchMentor = async function(uid){
   window._viewingUID = uid;
+  // Pull from live cache
+  window._DB_S = (window._xmAllStudents && window._xmAllStudents[uid]) || [];
+  window._DB_E = (window._xmAllExams    && window._xmAllExams[uid])    || [];
   deUpdateBadge();
-  document.getElementById('loadingOverlay').style.display = 'flex';
-  document.getElementById('loadingMsg').textContent = 'Loading mentor data…';
-  await window.loadUserData(uid);
-  document.getElementById('loadingOverlay').style.display = 'none';
   deRefreshUI();
 };
 
@@ -2471,12 +2589,13 @@ window.deNav = function(page, el){
   // If no button element passed, find the correct nav button by ID
   const navBtn = el || deG('de-nav-'+page);
   if(navBtn) navBtn.classList.add('active');
-  const t={'de-students':'Students','de-exams':'Exam Entry','de-bulk':'Bulk Entry','de-qanalysis':'Q Entry'};
+  const t={'de-students':'Students','de-exams':'Exam Entry','de-bulk':'Bulk Entry','de-qanalysis':'Q Entry','de-xmentor':'Unified Batch Entry'};
   deG('deTopbarTitle').innerHTML=`<span>${t[page]||page}</span>`;
   if(page==='de-students') deRenderStudents();
   if(page==='de-exams'){ dePopSelects(); deRenderExamTable(); deRenderRecentEntries(); }
   if(page==='de-bulk'){ deSwitchBulkTab('students'); }
   if(page==='de-qanalysis'){ dePopSelects(); const opts='<option value="">— Select —</option>'+(window._DB_S||[]).map(s=>`<option value="${s.id}">${s.roll} – ${s.name}</option>`).join(''); const deQAEl=deG('deQAStu'); if(deQAEl){deQAEl.innerHTML=opts;} }
+  if(page==='de-xmentor'){ xmInit(); }
 };
 
 // ── DE Refresh ──
@@ -2544,11 +2663,14 @@ window.deOpenAddStudent = function(){
 window.deAddStudent = async function(){
   const roll=deG('deNRoll').value.trim(), name=deG('deNName').value.trim();
   if(!roll||!name){toast('Roll and name required','er');return;}
-  const stu=window._DB_S||[];
+  const mentorUID=window._viewingUID;
+  const stu=(window._xmAllStudents&&window._xmAllStudents[mentorUID])||window._DB_S||[];
   if(stu.find(s=>s.roll===roll)){toast('Roll number already in use','er');return;}
   const s={id:'s_'+Date.now(),roll,name,batch:deG('deNBatch').value.trim(),phone:deG('deNPhone').value.trim(),note:deG('deNNote').value.trim(),createdAt:new Date().toISOString()};
-  try{await window._saveStudent(s);toast('Student added!');closeMoDE('moDeAddStu');}
-  catch(e){toast('Save failed: '+e.message,'er');}
+  try{
+    await window._saveStudentForMentor(mentorUID, s);
+    toast('Student added!');closeMoDE('moDeAddStu');
+  }catch(e){toast('Save failed: '+e.message,'er');}
 };
 window.deOpenEditStudent = function(id){
   const s=(window._DB_S||[]).find(st=>st.id===id); if(!s) return;
@@ -2559,15 +2681,19 @@ window.deOpenEditStudent = function(id){
 window.deSaveEditStudent = async function(){
   const id=deG('deEditStuId').value, roll=deG('deEditRoll').value.trim(), name=deG('deEditName').value.trim();
   if(!roll||!name){toast('Roll and name required','er');return;}
-  const stu=window._DB_S||[];
+  const mentorUID=window._viewingUID;
+  const stu=(window._xmAllStudents&&window._xmAllStudents[mentorUID])||window._DB_S||[];
   if(stu.find(s=>s.roll===roll&&s.id!==id)){toast('Roll already in use','er');return;}
   const existing=stu.find(s=>s.id===id); if(!existing) return;
-  try{await window._saveStudent({...existing,roll,name,batch:deG('deEditBatch').value.trim(),phone:deG('deEditPhone').value.trim(),note:deG('deEditNote').value.trim()});toast('Student updated!');closeMoDE('moDeEditStu');}
-  catch(e){toast('Save failed: '+e.message,'er');}
+  try{
+    await window._saveStudentForMentor(mentorUID, {...existing,roll,name,batch:deG('deEditBatch').value.trim(),phone:deG('deEditPhone').value.trim(),note:deG('deEditNote').value.trim()});
+    toast('Student updated!');closeMoDE('moDeEditStu');
+  }catch(e){toast('Save failed: '+e.message,'er');}
 };
 window.deDeleteStudent = async function(id, name){
   if(!confirm(`Delete student "${name}"? This cannot be undone.`)) return;
-  try{await window._deleteStudent(id);toast('Student deleted.','wa');}
+  const mentorUID=window._viewingUID;
+  try{await window._deleteStudentForMentor(mentorUID, id);toast('Student deleted.','wa');}
   catch(e){toast('Delete failed: '+e.message,'er');}
 };
 
@@ -2605,9 +2731,13 @@ window.deSaveExam = async function(){
   SUBJ_LIST.forEach((subj,i)=>{const v=parseFloat(deG(skeys[i]).value);const t=parseFloat(deG(tkeys[i]).value)||60;if(!isNaN(v)){marks[subj]=v;totals[subj]=t;hasAny=true;}else{marks[subj]=null;totals[subj]=t;}});
   if(!hasAny){toast('Enter at least one subject mark','er');return;}
   const examName=`${_deType} ${num}`;
+  const mentorUID=window._viewingUID;
   const e={id:`e_${Date.now()}`,studentId:stuId,type:_deType,examNum:num,examName,date:deG('deEDate').value,marks,totals,createdAt:new Date().toISOString()};
-  try{await window._saveExam(e);toast('Exam saved!');deClearExamForm();}
-  catch(err){toast('Save failed: '+err.message,'er');}
+  try{
+    await window._saveExamForMentor(mentorUID, e);
+    toast('Exam saved! Mentor dashboard will update live.');
+    deClearExamForm();
+  }catch(err){toast('Save failed: '+err.message,'er');}
 };
 window.deClearExamForm = function(){
   ['deSb','deSc','deSp','deSm'].forEach(id=>{deG(id).value='';});
@@ -2693,16 +2823,20 @@ window.deLivePreviewEdit = function(){
 };
 window.deSaveEditExam = async function(){
   const id=deG('deEditExamId').value;
+  const mentorUID=window._viewingUID;
   const e=(window._DB_E||[]).find(ex=>ex.id===id);if(!e)return;
   const marks={};const totals={};
   [['deEditSb','BIO'],['deEditSc','CHM'],['deEditSp','PHY'],['deEditSm','MATHS']].forEach(([eid,subj])=>{const v=parseFloat(deG(eid).value);marks[subj]=isNaN(v)?null:v;});
   [['deEditTb','BIO'],['deEditTc','CHM'],['deEditTp','PHY'],['deEditTm','MATHS']].forEach(([eid,subj])=>{totals[subj]=parseFloat(deG(eid).value)||60;});
-  try{await window._saveExam({...e,marks,totals,date:deG('deEditExamDate').value,updatedAt:new Date().toISOString()});toast('Exam updated!');closeMoDE('moDeEditExam');}
-  catch(err){toast('Save failed: '+err.message,'er');}
+  try{
+    await window._saveExamForMentor(mentorUID, {...e,marks,totals,date:deG('deEditExamDate').value,updatedAt:new Date().toISOString()});
+    toast('Exam updated!');closeMoDE('moDeEditExam');
+  }catch(err){toast('Save failed: '+err.message,'er');}
 };
 window.deDeleteExam = async function(id){
   if(!confirm('Delete this exam record?')) return;
-  try{await window._deleteExam(id);toast('Deleted.','wa');}
+  const mentorUID=window._viewingUID;
+  try{await window._deleteExamForMentor(mentorUID, id);toast('Deleted.','wa');}
   catch(e){toast('Delete failed: '+e.message,'er');}
 };
 
@@ -2735,13 +2869,19 @@ window.deParseBulkStudents = function(){
 window.deParseBulkStudentsLive = function(){ /* debounce-free live parse */ };
 window.deSaveBulkStudents = async function(){
   const valid=_deBulkParsedStudents.filter(Boolean);if(!valid.length)return;
-  const existing=window._DB_S||[];let saved=0,skipped=0;const newStudents=[];
+  const mentorUID = window._viewingUID;
+  const existing=(window._xmAllStudents&&window._xmAllStudents[mentorUID])||window._DB_S||[];
+  let saved=0,skipped=0;const newStudents=[];
   for(const s of valid){
     if(existing.find(e=>e.roll===s.roll)){skipped++;continue;}
-    try{await window._saveStudent(s);newStudents.push(s);saved++;}catch(e){toast('Error: '+e.message,'er');}
+    try{
+      await window._saveStudentForMentor(mentorUID, s);
+      newStudents.push(s);saved++;
+    }catch(e){toast('Error: '+e.message,'er');}
   }
-  // Immediately update local cache
-  window._DB_S = [...existing, ...newStudents];
+  // Update local cache immediately (onSnapshot will also fire)
+  if(window._xmAllStudents) window._xmAllStudents[mentorUID]=[...existing,...newStudents];
+  window._DB_S=[...(window._xmAllStudents&&window._xmAllStudents[mentorUID])||[]];
   toast(`Saved ${saved} students${skipped?' ('+skipped+' skipped — duplicate roll)':''}`);
   deG('deBulkStuText').value='';deG('deBulkStuPreview').innerHTML='';deG('deBtnBulkStuSave').style.display='none';_deBulkParsedStudents=[];
   deRefreshUI();
@@ -2784,11 +2924,14 @@ window.deParseBulkExams = function(){
 };
 window.deSaveBulkExams = async function(){
   const valid=_deBulkParsedExams.filter(Boolean);if(!valid.length)return;
+  const mentorUID = window._viewingUID;
   let saved=0;
-  for(const e of valid){try{await window._saveExam(e);saved++;}catch(err){toast('Error: '+err.message,'er');}}
-  // Immediately update local cache so mentor dashboard reflects new data
-  // (onSnapshot will also fire, this just ensures no delay)
-  window._DB_E = [...(window._DB_E||[]), ...valid.filter((_,i)=>i<saved)];
+  for(const e of valid){
+    try{await window._saveExamForMentor(mentorUID, e);saved++;}catch(err){toast('Error: '+err.message,'er');}
+  }
+  // Update local cache immediately (onSnapshot will also fire and update mentor's live view)
+  if(window._xmAllExams) window._xmAllExams[mentorUID]=[...(window._xmAllExams[mentorUID]||[]),...valid.filter((_,i)=>i<saved)];
+  window._DB_E=[...(window._xmAllExams&&window._xmAllExams[mentorUID])||[]];
   toast(`Saved ${saved} exam records!`);
   deG('deBulkExmText').value='';deG('deBulkExmPreview').innerHTML='';deG('deBtnBulkExmSave').style.display='none';_deBulkParsedExams=[];
   deRefreshUI();
@@ -2803,6 +2946,237 @@ function deQALoadExams(){
   const exams=(window._DB_E||[]).filter(e=>e.studentId===sid);
   sel.innerHTML='<option value="">— Select —</option>'+exams.map(e=>`<option value="${e.id}">${e.examName}${e.qdata?' [Q]':''}</option>`).join('');
 }
+
+// ══════════════════════════════════════════════════════════════════
+//  UNIFIED CROSS-MENTOR ENTRY  (xm*)
+//
+//  KEY DESIGN:
+//  • _xmAllStudents[mentorUID] = [...] is the live cache built at DE login
+//    via onSnapshot, so it always reflects current Firestore state.
+//  • Saves go directly to  mentors/{mentorUID}/exams  via _saveExamForMentor
+//    so each mentor's onSnapshot fires and their dashboard updates live.
+//  • No dependency on _viewingUID — every block targets its own mentor.
+// ══════════════════════════════════════════════════════════════════
+
+let _xmType = 'MT';
+const _xmParsed = {}; // { [mentorUID]: [examObj|null, ...] }
+
+window.xmSetType = function(t){
+  _xmType = t;
+  deG('xmTtMT').className='tt-btn'+(t==='MT'?' tt-mt':'');
+  deG('xmTtWE').className='tt-btn'+(t==='WE'?' tt-we':'');
+  deG('xmNumPfx').textContent = t;
+  xmUpdateAllHeaders();
+};
+
+window.xmUpdateAllHeaders = function(){
+  // Re-parse every block that has text, to keep previews up to date
+  Object.keys(window._FB.MENTOR_NAMES||{}).forEach(uid=>{
+    if((deG('xmText_'+uid)?.value||'').trim()) xmParseLive(uid);
+  });
+};
+
+window.xmSyncAllTotals = function(){
+  // When global totals change, push into every visible block and re-parse
+  const tb=deG('xmGTb')?.value||60, tc=deG('xmGTc')?.value||60;
+  const tp=deG('xmGTp')?.value||60, tm=deG('xmGTm')?.value||60;
+  Object.keys(window._FB.MENTOR_NAMES||{}).forEach(uid=>{
+    ['b','c','p','m'].forEach((k,i)=>{ const el=deG(`xmT${k}_${uid}`); if(el) el.value=[tb,tc,tp,tm][i]; });
+    if((deG('xmText_'+uid)?.value||'').trim()) xmParseLive(uid);
+  });
+};
+
+// Called when navigating to this page
+window.xmInit = function(){
+  const d = deG('xmExamDate');
+  if(d && !d.value) d.value = new Date().toISOString().split('T')[0];
+  xmBuildBlocks();
+};
+
+window.xmBuildBlocks = function(){
+  const container = deG('xmMentorBlocks');
+  if(!container) return;
+  const mentors = Object.entries(window._FB.MENTOR_NAMES||{});
+
+  container.innerHTML = mentors.map(([uid, name])=>{
+    const stuCount = (window._xmAllStudents&&window._xmAllStudents[uid]||[]).length;
+    const initials = name.split(' ').map(w=>w[0]).join('').slice(0,2);
+    return `
+    <div class="card" id="xmBlock_${uid}" style="border-left:3px solid var(--acc2)">
+      <!-- Block header -->
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--bdr)">
+        <div class="mentor-av" style="width:38px;height:38px;font-size:13px;flex-shrink:0">${initials}</div>
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:700;color:var(--t1)">${name}</div>
+          <div style="font-size:11px;color:var(--t3)" id="xmStuCount_${uid}">${stuCount} students registered</div>
+        </div>
+        <span id="xmStatus_${uid}" style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;display:none"></span>
+      </div>
+
+      <!-- Textarea -->
+      <div class="fg" style="margin-bottom:8px">
+        <textarea class="bulk-textarea" id="xmText_${uid}"
+          placeholder="Paste ${name}'s batch data here&#10;001, 45, 52, 38, 55&#10;002, 50, 48, 60, 42&#10;003, , 40, 35, 58"
+          style="min-height:120px;font-size:12px;font-family:'JetBrains Mono',monospace"
+          oninput="xmParseLive('${uid}')"></textarea>
+      </div>
+
+      <!-- Preview -->
+      <div id="xmPreview_${uid}" style="max-height:200px;overflow-y:auto;margin-bottom:4px"></div>
+    </div>`;
+  }).join('');
+};
+
+// Live parse for one mentor's block
+window.xmParseLive = function(uid){
+  const text  = (deG('xmText_'+uid)?.value||'').trim();
+  const type  = _xmType;
+  const num   = parseInt(deG('xmExamNum')?.value)||0;
+  const date  = deG('xmExamDate')?.value||new Date().toISOString().split('T')[0];
+  const tb    = parseFloat(deG('xmGTb')?.value)||60;
+  const tc    = parseFloat(deG('xmGTc')?.value)||60;
+  const tp    = parseFloat(deG('xmGTp')?.value)||60;
+  const tm    = parseFloat(deG('xmGTm')?.value)||60;
+  const totals = {BIO:tb, CHM:tc, PHY:tp, MATHS:tm};
+  const examName = num ? `${type} ${num}` : '';
+  const students = (window._xmAllStudents&&window._xmAllStudents[uid])||[];
+  const status  = deG('xmStatus_'+uid);
+  const preview = deG('xmPreview_'+uid);
+
+  // Update student count badge live
+  const cntEl = deG('xmStuCount_'+uid);
+  if(cntEl) cntEl.textContent = `${students.length} students registered`;
+
+  if(!text){ _xmParsed[uid]=[]; if(preview)preview.innerHTML=''; xmHideStatus(uid); xmUpdateSaveBtn(); return; }
+  if(!num){ if(preview) preview.innerHTML=`<div class="bulk-preview-row er"><span>Set an exam number at the top first</span></div>`; xmUpdateSaveBtn(); return; }
+
+  const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
+  const parsed = [];
+  let html = '';
+
+  lines.forEach((line, i)=>{
+    const parts = line.split(',').map(p=>p.trim());
+    const roll  = parts[0];
+    if(!roll){
+      html+=`<div class="bulk-preview-row er"><span class="bulk-row-num">${i+1}</span><span>Missing roll number</span></div>`;
+      parsed.push(null); return;
+    }
+    const stu = students.find(s=>s.roll.toLowerCase()===roll.toLowerCase());
+    if(!stu){
+      html+=`<div class="bulk-preview-row er"><span class="bulk-row-num">${i+1}</span><span>Roll <strong>${roll}</strong> not found in ${window._FB.MENTOR_NAMES[uid]}'s student list</span></div>`;
+      parsed.push(null); return;
+    }
+    const bv=parseFloat(parts[1]), cv=parseFloat(parts[2]), pv=parseFloat(parts[3]), mv=parseFloat(parts[4]);
+    const marks = {BIO:isNaN(bv)?null:bv, CHM:isNaN(cv)?null:cv, PHY:isNaN(pv)?null:pv, MATHS:isNaN(mv)?null:mv};
+    if(Object.values(marks).every(v=>v===null)){
+      html+=`<div class="bulk-preview-row er"><span class="bulk-row-num">${i+1}</span><span>Roll ${roll}: no valid marks found</span></div>`;
+      parsed.push(null); return;
+    }
+    const scored = [bv,cv,pv,mv].filter(v=>!isNaN(v)).reduce((a,b)=>a+b,0);
+    const maxed  = [bv,cv,pv,mv].reduce((a,v,j)=>isNaN(v)?a:a+[tb,tc,tp,tm][j], 0);
+    const p = maxed>0 ? Math.round(scored/maxed*100) : 0;
+    const g = grd(p);
+    const examObj = {
+      id: `e_${Date.now()}_${Math.random().toString(36).slice(2,8)}_${i}`,
+      studentId: stu.id,
+      type, examNum: num, examName, date,
+      marks, totals,
+      createdAt: new Date().toISOString()
+    };
+    parsed.push(examObj);
+    html += `<div class="bulk-preview-row ok">
+      <span class="bulk-row-num">${i+1}</span>
+      <span style="flex:1;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <strong style="color:var(--t1);min-width:30px">${roll}</strong>
+        <span style="color:var(--t2)">${stu.name}</span>
+        <span style="color:var(--bio);font-family:'JetBrains Mono',monospace;font-size:11px">${isNaN(bv)?'—':bv}</span>
+        <span style="color:var(--chm);font-family:'JetBrains Mono',monospace;font-size:11px">${isNaN(cv)?'—':cv}</span>
+        <span style="color:var(--phy);font-family:'JetBrains Mono',monospace;font-size:11px">${isNaN(pv)?'—':pv}</span>
+        <span style="color:var(--mth);font-family:'JetBrains Mono',monospace;font-size:11px">${isNaN(mv)?'—':mv}</span>
+        <strong style="color:${g.c};font-family:'JetBrains Mono',monospace">${p}% ${g.g}</strong>
+      </span>
+    </div>`;
+  });
+
+  _xmParsed[uid] = parsed;
+  if(preview) preview.innerHTML = html || '<div style="color:var(--t3);font-size:12px;padding:8px">Nothing to preview</div>';
+  const valid = parsed.filter(Boolean).length;
+  const total = lines.length;
+  if(status){
+    status.style.display = '';
+    if(valid===total){ status.textContent=`✓ ${valid} ready`; status.style.cssText+=';background:rgba(52,211,153,.15);color:var(--acc3);border:1px solid rgba(52,211,153,.3)'; }
+    else if(valid>0) { status.textContent=`${valid}/${total} ready`; status.style.cssText+=';background:rgba(245,158,11,.15);color:var(--acc4);border:1px solid rgba(245,158,11,.3)'; }
+    else             { status.textContent=`${total} errors`; status.style.cssText+=';background:rgba(248,113,113,.15);color:var(--acc5);border:1px solid rgba(248,113,113,.3)'; }
+  }
+  xmUpdateSaveBtn();
+};
+
+window.xmHideStatus = function(uid){
+  const s=deG('xmStatus_'+uid); if(s) s.style.display='none';
+};
+
+window.xmUpdateSaveBtn = function(){
+  const total = Object.values(_xmParsed).flat().filter(Boolean).length;
+  const mentorCount = Object.entries(_xmParsed).filter(([,v])=>v&&v.filter(Boolean).length>0).length;
+  const btn   = deG('xmSaveAllBtn');
+  const label = deG('xmSaveAllLabel');
+  if(!btn) return;
+  if(total>0){
+    btn.style.display='';
+    if(label) label.textContent = `Save All — ${total} record${total!==1?'s':''} across ${mentorCount} mentor${mentorCount!==1?'s':''}`;
+  } else {
+    btn.style.display='none';
+  }
+};
+
+// Save all parsed records — each to the correct mentor's Firestore path
+window.xmSaveAll = async function(){
+  const btn=deG('xmSaveAllBtn');
+  if(btn){ btn.disabled=true; btn.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Saving…'; }
+
+  let totalSaved=0, totalSkipped=0, totalErrors=0;
+  const mentors = Object.entries(_xmParsed);
+
+  for(const [uid, records] of mentors){
+    const valid = records ? records.filter(Boolean) : [];
+    if(!valid.length) continue;
+
+    // Get existing exams for this mentor from live cache to detect duplicates
+    const existingExams = (window._xmAllExams && window._xmAllExams[uid]) || [];
+
+    for(const exam of valid){
+      // Duplicate check: same student + same examName already exists
+      const dup = existingExams.find(e=>e.studentId===exam.studentId && e.examName===exam.examName);
+      if(dup){ totalSkipped++; continue; }
+      try{
+        await window._saveExamForMentor(uid, exam);
+        // Update local cache immediately — onSnapshot will also fire and update mentor's live view
+        if(window._xmAllExams) window._xmAllExams[uid] = [...(window._xmAllExams[uid]||[]), exam];
+        totalSaved++;
+      }catch(e){
+        console.error('xmSaveAll error for mentor',uid,e);
+        toast(`Error saving for ${window._FB.MENTOR_NAMES[uid]}: ${e.message}`, 'er');
+        totalErrors++;
+      }
+    }
+
+    // Clear this block
+    const textEl=deG('xmText_'+uid), prevEl=deG('xmPreview_'+uid), statusEl=deG('xmStatus_'+uid);
+    if(textEl) textEl.value='';
+    if(prevEl) prevEl.innerHTML='';
+    if(statusEl){ statusEl.textContent='Saved ✓'; statusEl.style.cssText=';display:;background:rgba(52,211,153,.15);color:var(--acc3);border:1px solid rgba(52,211,153,.3)'; }
+    _xmParsed[uid]=[];
+  }
+
+  xmUpdateSaveBtn();
+  if(btn){ btn.disabled=false; btn.innerHTML='<i class="fa-solid fa-floppy-disk"></i>&nbsp; <span id="xmSaveAllLabel">Save All</span>'; }
+
+  if(totalSaved>0){
+    toast(`✓ Saved ${totalSaved} exam record${totalSaved!==1?'s':''}${totalSkipped?` · ${totalSkipped} skipped (duplicate)`:''}${totalErrors?` · ${totalErrors} error${totalErrors!==1?'s':''}`:''}. Mentor dashboards updated live!`);
+  } else if(totalSkipped>0){
+    toast(`All ${totalSkipped} records already exist — nothing new to save.`, 'wa');
+  }
+};
 
 // ── DE init ──
 deG('deEDate') && (deG('deEDate').value = new Date().toISOString().split('T')[0]);
