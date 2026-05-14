@@ -10,7 +10,8 @@
 <!-- Firebase SDK -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getAuth, signInWithEmailAndPassword, onAuthStateChanged }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBLpXS6kq5_aBkVIV5EU_6qIy2e2t254Zw",
@@ -22,20 +23,17 @@
     measurementId: "G-H099X2RKEN"
   };
 
-  const app = initializeApp(firebaseConfig);
+  const app  = initializeApp(firebaseConfig);
   const auth = getAuth(app);
 
   // If already logged in, redirect to app
   onAuthStateChanged(auth, user => {
-    if (user) {
-      window.location.href = 'app.html';
-    }
+    if (user) window.location.href = 'app.html';
   });
 
-  // Expose login function
-  window._doLogin = async (email, password) => {
-    return signInWithEmailAndPassword(auth, email, password);
-  };
+  // ── FIX: expose login directly on window so plain-script doLogin() can call it ──
+  // Using a Promise so doLogin() can await even if module hasn't finished yet.
+  window._firebaseReady = Promise.resolve({ auth, signInWithEmailAndPassword });
 </script>
 
 <style>
@@ -470,32 +468,60 @@
 
   async function doLogin() {
     const email = document.getElementById('loginEmail').value.trim();
-    const pwd = document.getElementById('loginPassword').value;
-    const btn = document.getElementById('loginBtn');
+    const pwd   = document.getElementById('loginPassword').value;
+    const btn   = document.getElementById('loginBtn');
 
-    if (!email || !pwd) {
-      showError('Please enter email and password.');
-      return;
-    }
+    if (!email || !pwd) { showError('Please enter email and password.'); return; }
 
     btn.disabled = true;
     btn.classList.add('loading');
     hideError();
 
     try {
-      await window._doLogin(email, pwd);
-      // onAuthStateChanged will redirect
+      // ── Robust approach: use the module-exposed firebase objects if ready,
+      //    otherwise dynamically import ourselves. This eliminates the race condition
+      //    where window._doLogin was undefined if the module hadn't finished yet.
+      let auth, signInWithEmailAndPassword;
+
+      if (window._firebaseReady) {
+        ({ auth, signInWithEmailAndPassword } = await window._firebaseReady);
+      } else {
+        // Fallback: dynamic import (always works, slightly slower first call)
+        const { initializeApp, getApps } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
+        const fbAuth = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
+        signInWithEmailAndPassword = fbAuth.signInWithEmailAndPassword;
+        const existingApps = getApps();
+        const app = existingApps.length
+          ? existingApps[0]
+          : initializeApp({
+              apiKey: "AIzaSyBLpXS6kq5_aBkVIV5EU_6qIy2e2t254Zw",
+              authDomain: "crispr-c69c7.firebaseapp.com",
+              projectId: "crispr-c69c7",
+              storageBucket: "crispr-c69c7.firebasestorage.app",
+              messagingSenderId: "550912154892",
+              appId: "1:550912154892:web:e3cbd9213478031e13fd29"
+            });
+        auth = fbAuth.getAuth(app);
+      }
+
+      await signInWithEmailAndPassword(auth, email, pwd);
+      // onAuthStateChanged in module will redirect to app.html
+
     } catch (err) {
+      console.error('[CRISPR Login Error]', err.code, err.message);
       btn.disabled = false;
       btn.classList.remove('loading');
       const map = {
-        'auth/invalid-credential': 'Incorrect email or password.',
-        'auth/user-not-found': 'No account found with this email.',
-        'auth/wrong-password': 'Incorrect password.',
-        'auth/too-many-requests': 'Too many attempts. Try again later.',
-        'auth/network-request-failed': 'Network error. Check your connection.',
+        'auth/invalid-credential':      'Incorrect email or password.',
+        'auth/invalid-email':           'Invalid email address format.',
+        'auth/user-not-found':          'No account found with this email.',
+        'auth/wrong-password':          'Incorrect password.',
+        'auth/user-disabled':           'This account has been disabled.',
+        'auth/too-many-requests':       'Too many attempts. Please wait a moment and try again.',
+        'auth/network-request-failed':  'Network error. Check your internet connection.',
+        'auth/operation-not-allowed':   'Email/password login is not enabled in Firebase.',
       };
-      showError(map[err.code] || 'Login failed. Please try again.');
+      showError(map[err.code] || `Login failed: ${err.message}`);
     }
   }
 </script>
